@@ -23,7 +23,7 @@ path_topo = "/home/catecroci/SP_files/output/dir_1/"
 topo_name = "topography_buffer.nc"
 
 
-# Test use
+# Create a test grid using a part of the ICON Grid
 cell = 11
 vertex = 11
 nv = 3
@@ -85,22 +85,9 @@ clon[10] = grid["clon"][592].values
 clat[10] = grid["clat"][592].values
 
 
-vertex_of_cell[0] = np.array([293, 151, 306, 1, 302, 148, 578, 293, 719, 302, 586])
-vertex_of_cell[1] = np.array([1, 306, 151, 293, 148, 302, 293, 578, 302, 719, 303])
-vertex_of_cell[2] = np.array([151, 293, 28, 302, 1, 303, 306, 719, 293, 586, 302])
-
 vertex_of_cell[0] = np.array([1, 3, 4, 2, 6, 7, 9, 1, 10, 6, 11])
 vertex_of_cell[1] = np.array([2, 4, 3, 1, 7, 6, 1, 9, 6, 10, 8])
 vertex_of_cell[2] = np.array([3, 1, 5, 6, 2, 8, 4, 10, 1, 11, 6])
-
-'''triangles_lon = np.empty((cell, 3))
-triangles_lat = np.empty((cell, 3))
-for i in range(cell):
-    triangles_lon[i][:] = vlon[vertex_of_cell[:,i]-1]
-    #triangles_lon[i][1] = vlon[vertex_of_cell[1][i]-1]
-    #triangles_lon[i][2] = vlon[vertex_of_cell[2][i]-1]
-    triangles_lat[i][:] = vlat[vertex_of_cell[:,i]-1]
-'''
 
 # print circumcenters and vertices
 # Create the Triangulation; no triangles so Delaunay triangulation created.

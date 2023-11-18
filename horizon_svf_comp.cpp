@@ -876,19 +876,6 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
     vector<double> h_v(vertex, 0.0);
     vector<double> h_c(cell, 0.0); 
 
-	/*cout << "h_v: ";
-	int i = 1;
-    for (double value : h_c) {
-        cout << i << " ";
-		i++;
-    }
-    cout << endl;*/
-
-	/*for (int i=0; i < vertex; i++){
-		std::cout << topography_v[i] << " ";
-	}
-	std::cout << endl;*/
-
     // initialize the vectors containing 
     // components of the normal vector for each triangle and of the
     // points of intersection between each triangle and the circumcenter
@@ -913,19 +900,6 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 		idx1 = vertex_of_cell[i] - 1;
 		idx2 = vertex_of_cell[i + cell] - 1;
 		idx3 = vertex_of_cell[i + 2 * cell] - 1;
-		
-		/*std::cout << "Indices of cell vertices: ";
-		std::cout << idx1 << ", " << idx2 << ", " << idx3 << endl;
-
-		std::cout << "1st vertex: (";
-		std::cout << vert_ecef.x[idx1] << ", " << vert_ecef.y[idx1] << ", " 
-			<< vert_ecef.z[idx1] << ")" << endl;
-		std::cout << "2nd vertex: (";
-		std::cout << vert_ecef.x[idx2] << ", " << vert_ecef.y[idx2] << ", " 
-			<< vert_ecef.z[idx2] << ")" << endl;
-		std::cout << "3rd vertex: (";
-		std::cout << vert_ecef.x[idx3] << ", " << vert_ecef.y[idx3] << ", " 
-			<< vert_ecef.z[idx3] << ")" << endl;*/
 
 		//compute two directions that will allow 
 		// to generate the plane of the cell
@@ -935,37 +909,24 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
         dir2_x = vert_ecef.x[idx3] - vert_ecef.x[idx1];
         dir2_y = vert_ecef.y[idx3] - vert_ecef.y[idx1];
         dir2_z = vert_ecef.z[idx3] - vert_ecef.z[idx1];
-		
-		/*std::cout << "Coordinates first direction: (" 
-			<< dir1_x << ", " << dir1_y << ", " << dir1_z << ")" << endl;
-		std::cout << "Coordinates second direction: (" 
-			<< dir2_x << ", " << dir2_y << ", " << dir2_z << ")" << endl;*/
 
         // compute coeffiecients of the normal of the trg
-        //cross_prod(dir1_x, dir1_y, dir1_z, dir2_x, dir2_y, dir2_z, norm_x[i], norm_y[i], norm_z[i]);
 		norm_x[i] = dir1_y * dir2_z - dir1_z * dir2_y;
     	norm_y[i] = dir1_z * dir2_x - dir1_x * dir2_z;
     	norm_z[i] = dir1_x * dir2_y - dir1_y * dir2_x;
-		/*cout << "Compute normal wrt the surface of the triangle: (" 
-			<< norm_x[i] << ", " << norm_y[i] << ", " << norm_z[i] << ")" << endl;*/
+
         // compute the constant term of the plane 
         d = - norm_x[i]*vert_ecef.x[idx1] - norm_y[i]*vert_ecef.y[idx1] - norm_z[i]*vert_ecef.z[idx1];
-		/*std::cout << "Termine noto che definisce il piano del triangolo: " << d << endl;*/
 
         // compute intersection between the line and the plane
         // note that in our case, since the origin is (0,0,0)
         // the line that we have to intersect is simply defined 
         // by the coordinates of the circumcenter 
-        //param = - (norm_x[i]*circ_ecef.x[i] + norm_y[i]*circ_ecef.y[i] + norm_z[i]*circ_ecef.z[i] + d);
 		param = - d / (norm_x[i]*circ_ecef.x[i] + norm_y[i]*circ_ecef.y[i] + norm_z[i]*circ_ecef.z[i]);
-		/*std::cout << "Parameter to then compute the intersection: " << param << endl; 
-		std::cout << "circumcenter: (" << circ_ecef.x[i] << ", " 
-			<< circ_ecef.y[i] << ", " << circ_ecef.z[i] << ")" << endl;*/ 
+ 
         intersect_x[i] = param * circ_ecef.x[i]; 
         intersect_y[i] = param * circ_ecef.y[i]; 
         intersect_z[i] = param * circ_ecef.z[i]; 
-		/*std::cout << "Intersection point n." << i << ": (" 
-			<< intersect_x[i] << ", " << intersect_y[i] << ", " << intersect_z[i] << ")" << endl;*/
         
     }
 
@@ -1008,21 +969,9 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 	}
 	//pad-buffer function
 	vert_buffer = pad_buffer(vert_buffer);
-	/*std::cout << "Vertices buffer [must contain the three coordinates one after the other]: ";
-	for (int i = 0; i < vertex; i++){
-		std::cout << "(" << vert_buffer[3*i] << ", " << vert_buffer[3*i+1] << ", " << vert_buffer[3*i+2] << ");  "; 
-	} 
-	std::cout << endl;
-
-	std::cout << "lonlat buffer: ";
-	for (int i = 0; i < vertex; i++){
-		std::cout << "(" << lonlat_buffer[2*i] << ", " << lonlat_buffer[2*i+1] << ");  "; 
-	} 
-	std::cout << endl;*/
 
   	RTCDevice device = initializeDevice();
   	RTCScene scene = initializeScene(device, &vert_buffer[0], vertex_of_cell, vertex, cell);
-  		//vert_simp, num_vert_simp, tri_ind_simp, num_tri_simp);
 
 
   	auto end_ini = std::chrono::high_resolution_clock::now();
@@ -1078,18 +1027,18 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
   	// Compute normals to the surface and north vectors in the circumcenters
 	coords vec_norm_ecef, vec_north_ecef;
 	vec_norm_ecef = surf_norm(clon, clat, cell);
-	std::cout << "Vector normal to the surface for each cell: " << endl;
+	/*std::cout << "Vector normal to the surface for each cell: " << endl;
 	for (int i = 0; i < cell; i++){
 		std::cout << "(" << vec_norm_ecef.x[i] << ", " << vec_norm_ecef.y[i] << ", " << vec_norm_ecef.z[i] << ")" << " ";
 	}
-	std::cout << endl;
+	std::cout << endl;*/
 
 	vec_north_ecef = north_dir(circ_ecef.x, circ_ecef.y, circ_ecef.z, cell, vec_norm_ecef);
-	std::cout << " Vector that points towrds North for each cell: " << endl;
+	/*std::cout << " Vector that points towrds North for each cell: " << endl;
 	for (int i = 0; i < cell; i++){
 		std::cout << "(" << vec_north_ecef.x[i] << ", " << vec_north_ecef.y[i] << ", " << vec_north_ecef.z[i] << ")" << " ";
 	}
-	std::cout << endl;
+	std::cout << endl;*/
 
 	// Transfor the Norm and North vectors from double to float
 
