@@ -586,8 +586,12 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   	float lim_up = elev_ang_up_lim;
   	float lim_low = elev_ang_low_lim;
 
+	// elev_ang in my case is the angle that defines
+	// the rotation angle for Rodrigues' formula
   	float elev_ang = (lim_up + lim_low) / 2.0;
 	float elev_sin, elev_cos;
+	// final_ang is the angle that describes 
+	// the final horizon angle
 	float final_ang = elev_ang;
 
 	float clock_prod_x, clock_prod_y, clock_prod_z;
@@ -601,9 +605,9 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 
 	// cross product to then have the normal axis 
 	// that allows a counter-clockwise rotation
-	clock_prod_x = norm_y * north_z - norm_z * north_y;
-	clock_prod_y = norm_z * north_x - norm_x * north_z;
-	clock_prod_z = norm_x * north_y - norm_y * north_x;
+	clock_prod_x = - counterclock_prod_x;
+	clock_prod_y = - counterclock_prod_y;
+	clock_prod_z = - counterclock_prod_z;
 
 	float new_dir_x, new_dir_y, new_dir_z;
 	new_dir_x = north_x;
@@ -611,18 +615,19 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	new_dir_z = north_z;
 
 
-
-  	while (max(lim_up - elev_ang,
-  		elev_ang - lim_low) > hori_acc) {
+	int hit_num = 0;
+  	while (max(lim_up - final_ang,
+  		final_ang - lim_low) > hori_acc) {
 
   		bool hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   			ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   			dist_search);
   		num_rays += 1;
-  			
+  		
   		if (hit) {
   			lim_low = elev_ang;
-			elev_ang = (lim_up + lim_low) / 2.0;
+			elev_ang = (lim_up - lim_low) / 2.0;
+
 
 			elev_sin = sin(elev_ang);
 			elev_cos = cos(elev_ang);
@@ -644,8 +649,9 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			final_ang += elev_ang;
 
   		} else {
+			hit_num++;
   			lim_up = elev_ang;
-			elev_ang = (lim_up + lim_low) / 2.0;
+			elev_ang = (lim_up - lim_low) / 2.0;
 
 			// Rodrigues' rotation formula
 			param = (1 - elev_cos) * 
@@ -662,7 +668,12 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 				clock_prod_z * param;
 			
 			final_ang -= elev_ang;
+
   		}
+		
+		if ((hit_num==1) || (hit_num == 2) || (hit_num == 3)){
+			std::cout << final_ang << endl; 
+		}
   				
   	}
 
@@ -675,10 +686,6 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	// Remaining azimuth directions (guess horizon from previous
 	// azimuth direction)
 	// ------------------------------------------------------------------------
-	/*float new_dir_x, new_dir_y, new_dir_z;
-	new_dir_x = north_x;
-	new_dir_y = north_y;
-	new_dir_z = north_z;*/
 
 	for (size_t k = 1; k < azim_num; k++){
 		
@@ -698,15 +705,16 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			(norm_x * new_dir_y - norm_y * new_dir_x) * azim_sin + 
 			norm_z * param;
 
+		// now focus on elevation rotation
 		// cross product to then have a counter-clockwise rotation
 		counterclock_prod_x = new_dir_y * norm_z - new_dir_z * norm_y;
 		counterclock_prod_y = new_dir_z * norm_x - new_dir_x * norm_z;
 		counterclock_prod_z = new_dir_x * norm_y - new_dir_y * norm_x;
 
 		// cross product to then have a clockwise rotation
-		clock_prod_x = norm_y * new_dir_z - norm_z * new_dir_y;
-		clock_prod_y = norm_z * new_dir_x - norm_x * new_dir_z;
-		clock_prod_z = norm_x * new_dir_y - norm_y * new_dir_x;
+		clock_prod_x = - counterclock_prod_x;
+		clock_prod_y = - counterclock_prod_y;
+		clock_prod_z = - counterclock_prod_z;
 
 		// Move upwards to check if the horizon is higher
 		int delta = 1;
@@ -744,21 +752,13 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   			count += 1;		
 		}
 
-		// if it hit the topography at least once = it has
-		// a higher horizon level wrt the previous sector 
-		/*if (count > 1) {
-  			//elev_ang = (prev_elev_ang + elev_ang[ind_elev]) / 2.0;
-  			hori_buffer[k] = elev_ang;
-  			continue;
-		}*/
-
 		// Move downwards to check if the horizon is lower
 		hit = false;
 
 		// discrete ray sampling until it hits the topography
 		while (!hit) {
 			final_ang -= delta;			
-
+			std::cout << final_ang <<endl;
 			// Rodrigues' rotation formula
 			param = (1 - cos_delta) * 
 				(clock_prod_x * new_dir_x + clock_prod_y * new_dir_y + clock_prod_z * new_dir_z);
@@ -982,7 +982,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
   	float elev_ang_up_lim = 90.0;  
 	float elev_ang_low_lim = -90.0;
 
-	float hori_acc = 0.25; // horizon accuracy in radiants
+	float hori_acc = 15; // horizon accuracy in degrees
 	float dist_search = 20;  //[kilometer]
   	dist_search *= 1000.0;  // [kilometer] -> [metre]
 
@@ -1064,7 +1064,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 
   		auto start_ray = std::chrono::high_resolution_clock::now();
     
-		for (int i = 0; i < cell; i++){
+		for (int i = 0; i < 1; i++){
 			std::cout << "Cell nr."<< i << endl;
 			if (mask[i] == 1){
 
@@ -1077,7 +1077,10 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
   						+ vec_norm_ecef.z[i] * ray_org_elev;
 
 					std::cout << "Ray origin: (" << ray_org_x << ", " << ray_org_y << ", " << ray_org_z << ")" << endl;
-
+					
+					std::cout << "Vec norm ecef: (" << vec_norm_ecef.x[i] << ", " << vec_norm_ecef.y[i] << ", " << vec_norm_ecef.z[i] << ")" << endl;
+					std::cout << "Vec north ecef: (" << vec_north_ecef.x[i] << ", " << vec_north_ecef.y[i] << ", " << vec_north_ecef.z[i] << ")" << endl;
+					
 					ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
 						hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
 						scene, num_rays, hori_buffer, vec_norm_ecef.x[i], 
