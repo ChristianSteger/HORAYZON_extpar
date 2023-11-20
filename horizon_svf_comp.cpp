@@ -625,8 +625,9 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   		num_rays += 1;
   		
   		if (hit) {
-  			lim_low = elev_ang;
-			elev_ang = (lim_up - lim_low) / 2.0;
+			hit_num++;
+  			lim_low = final_ang;
+			elev_ang = (std::abs(lim_up) - std::abs(lim_low)) / 2.0;
 
 
 			elev_sin = sin(elev_ang);
@@ -650,8 +651,8 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 
   		} else {
 			hit_num++;
-  			lim_up = elev_ang;
-			elev_ang = (lim_up - lim_low) / 2.0;
+  			lim_up = final_ang;		
+			elev_ang = (std::abs(lim_up) - std::abs(lim_low)) / 2.0;
 
 			// Rodrigues' rotation formula
 			param = (1 - elev_cos) * 
@@ -667,12 +668,15 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 				(clock_prod_x * new_dir_y - clock_prod_y * new_dir_x) * elev_sin + 
 				clock_prod_z * param;
 			
-			final_ang -= elev_ang;
+			final_ang += elev_ang;
 
   		}
 		
 		if ((hit_num==1) || (hit_num == 2) || (hit_num == 3)){
-			std::cout << final_ang << endl; 
+			std::cout << "elev_ang = " << elev_ang << endl;
+			std::cout << "lim_up = " << lim_up << endl;
+			std::cout << "lim_low = " << lim_low << endl;
+			std::cout << "final_ang = " << final_ang << endl; 
 		}
   				
   	}
@@ -758,7 +762,6 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 		// discrete ray sampling until it hits the topography
 		while (!hit) {
 			final_ang -= delta;			
-			std::cout << final_ang <<endl;
 			// Rodrigues' rotation formula
 			param = (1 - cos_delta) * 
 				(clock_prod_x * new_dir_x + clock_prod_y * new_dir_y + clock_prod_z * new_dir_z);
