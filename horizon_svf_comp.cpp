@@ -639,7 +639,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	// Remaining azimuth directions (guess horizon from previous
 	// azimuth direction)
 	// ------------------------------------------------------------------------
-	/*
+	
 	for (size_t k = 1; k < azim_num; k++){
 		
 		// Rodrigues' rotation formula TO CHANGE THE AZIMUTH
@@ -670,7 +670,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 		clock_prod_z = - counterclock_prod_z;
 
 		// Move upwards to check if the horizon is higher
-		int delta = 0.0175; // [radians]
+		int delta = 0.15; //0.0175; // [radians]
 		float sin_delta = sin(delta);
 		float cos_delta = cos(delta);
 
@@ -728,12 +728,12 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   			hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
-  			num_rays += 1;				
+  			num_rays += 1;		
 		}
 
   		hori_buffer[k] = final_ang;
 		std::cout << "Horizon azimuth nr." << k << ": " << elev_ang << endl;
-	}*/
+	}
 
 }
 
