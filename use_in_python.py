@@ -22,8 +22,9 @@ grid_name = "child_grid_DOM01_lon_2.0_lat_1.0.nc"
 path_topo = "/home/catecroci/SP_files/output/dir_1/"
 topo_name = "topography_buffer.nc"
 
-
+# TEST 1
 # Create a test grid using a part of the ICON Grid
+
 cell = 11
 vertex = 11
 nv = 3
@@ -121,12 +122,6 @@ topography_v = topography_v.ravel()
 '''
 # create mask 
 mask = np.ones_like(clon, dtype="int32")
-
-# give the user the chance to change the mask
-#print('By default, all grid cells are considered.\n')
-#answer = input('Do you want to exclude some of them? (y/n)')
-
-
 
 # Check arguments
 if ((vlon.shape != vlat.shape) or (clon.shape != clat.shape)):
