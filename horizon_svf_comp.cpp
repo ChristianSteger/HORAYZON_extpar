@@ -405,9 +405,9 @@ RTCScene initializeScene(RTCDevice device, float* vert_grid,
         num_tri);
 
 	for (int i = 0; i < num_tri; i++) {
-			triangles[i].v0 = vertex_of_cell[3 * i];
-			triangles[i].v1 = vertex_of_cell[3 * i + 1];
-			triangles[i].v2 = vertex_of_cell[3 * i + 2];
+			triangles[i].v0 = vertex_of_cell[3 * i]-1;
+			triangles[i].v1 = vertex_of_cell[3 * i + 1]-1;
+			triangles[i].v2 = vertex_of_cell[3 * i + 2]-1;
 
 			std::cout << "triangle nr. " << i << " : (" << triangles[i].v0 << ", " << triangles[i].v1 << ", " << triangles[i].v2 << ");  ";
 	}
@@ -534,7 +534,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 
 	// elev_ang in my case is the angle that defines
 	// the rotation angle for Rodrigues' formula
-  	float elev_ang = (lim_up + lim_low) / 2.0;
+  	float elev_ang = 0; // (abs(lim_up) - abs(lim_low)) / 2.0;
 	float elev_sin, elev_cos;
 
 	// final_ang is the angle that describes 
@@ -573,7 +573,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   		if (hit) {
 			hit_num++;
   			lim_low = final_ang;
-			elev_ang = (abs(lim_up) - abs(lim_low)) / 2.0;
+			elev_ang = (lim_up - lim_low) / 2.0;
 
 
 			elev_sin = sin(abs(elev_ang));
@@ -620,13 +620,13 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			final_ang += elev_ang;
 
   		}
-		/*
-		if ((hit_num==1) || (hit_num == 2) || (hit_num == 3)){
+		
+		if ((hit_num==1) || (hit_num == 2) || (hit_num == 3) || (hit_num == 4) || (hit_num == 5) || (hit_num == 6)){
 			std::cout << "lim_up = " << rad2deg(lim_up) << endl;
 			std::cout << "lim_low = " << rad2deg(lim_low) << endl;
 			std::cout << "elev_ang = " << rad2deg(elev_ang) << endl;
 			std::cout << "final_ang = " << rad2deg(final_ang) << endl; 
-		}*/
+		}
   				
   	}
 
@@ -639,7 +639,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	// Remaining azimuth directions (guess horizon from previous
 	// azimuth direction)
 	// ------------------------------------------------------------------------
-	
+/*	
 	for (size_t k = 1; k < azim_num; k++){
 		
 		// Rodrigues' rotation formula TO CHANGE THE AZIMUTH
@@ -734,7 +734,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   		hori_buffer[k] = final_ang;
 		std::cout << "Horizon azimuth nr." << k << ": " << elev_ang << endl;
 	}
-
+*/
 }
 
 //#############################################################################
