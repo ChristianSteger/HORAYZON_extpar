@@ -62,7 +62,7 @@ inline void cross_prod(double a_x, double a_y, double a_z, double b_x, double b_
     c_z = a_x * b_y - a_y * b_x;
 }
 
-coords lonlat2ecef(double* vlon, double* vlat, double* h, int len){
+coords lonlat2ecef(double* vlon, double* vlat, float* h, int len){
 
     /*Coordinate transformation from lon/lat to ECEF.
 
@@ -405,13 +405,13 @@ RTCScene initializeScene(RTCDevice device, float* vert_grid,
         num_tri);
 
 	for (int i = 0; i < num_tri; i++) {
-			triangles[i].v0 = vertex_of_cell[3 * i]-1;
-			triangles[i].v1 = vertex_of_cell[3 * i + 1]-1;
-			triangles[i].v2 = vertex_of_cell[3 * i + 2]-1;
+			triangles[i].v0 = vertex_of_cell[3 * i] - 1;
+			triangles[i].v1 = vertex_of_cell[3 * i + 1] - 1;
+			triangles[i].v2 = vertex_of_cell[3 * i + 2] - 1;
 
-			std::cout << "triangle nr. " << i << " : (" << triangles[i].v0 << ", " << triangles[i].v1 << ", " << triangles[i].v2 << ");  ";
+			//std::cout << "triangle nr. " << i << " : (" << triangles[i].v0 << ", " << triangles[i].v1 << ", " << triangles[i].v2 << ");  ";
 	}
-	std::cout << endl;
+	//std::cout << endl;
 
 	auto start = std::chrono::high_resolution_clock::now();
 
@@ -522,7 +522,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	RTCScene scene, size_t &num_rays, vector<float> hori_buffer,
 	float norm_x, float norm_y, float norm_z,
 	float north_x, float north_y, float north_z,
-	float azim_sin, float azim_cos) {
+	float azim_sin, float azim_cos, int cell) {
 
 	// ------------------------------------------------------------------------
   	// First azimuth direction (binary search - faster)
@@ -575,60 +575,43 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   			lim_low = final_ang;
 			elev_ang = (lim_up - lim_low) / 2.0;
 
-
-			elev_sin = sin(abs(elev_ang));
-			elev_cos = cos(abs(elev_ang));
-
-			// Rodrigues' rotation formula
-			param = (1 - elev_cos) * 
-				(counterclock_prod_x * new_dir_x + counterclock_prod_y * new_dir_y + counterclock_prod_z * new_dir_z);
-
-			new_dir_x = new_dir_x * elev_cos + 
-				(counterclock_prod_y * new_dir_z - counterclock_prod_z * new_dir_y) * elev_sin + 
-				counterclock_prod_x * param;
-			new_dir_y = new_dir_y * elev_cos + 
-				(counterclock_prod_z * new_dir_x - counterclock_prod_x * new_dir_z) * elev_sin + 
-				counterclock_prod_y * param;
-			new_dir_z = new_dir_z * elev_cos + 
-				(counterclock_prod_x * new_dir_y - counterclock_prod_y * new_dir_x) * elev_sin + 
-				counterclock_prod_z * param;
-			
-			final_ang += elev_ang;
+			elev_sin = sin(elev_ang);
+			elev_cos = cos(elev_ang);
 
   		} else {
 			hit_num++;
   			lim_up = final_ang;		
-			elev_ang = (abs(lim_up) - abs(lim_low)) / 2.0;
+			elev_ang = - (lim_up - lim_low) / 2.0;
 
-			elev_sin = sin(abs(elev_ang));
-			elev_cos = cos(abs(elev_ang));
-
-			// Rodrigues' rotation formula
-			param = (1 - elev_cos) * 
-				(clock_prod_x * new_dir_x + clock_prod_y * new_dir_y + clock_prod_z * new_dir_z);
-
-			new_dir_x = new_dir_x * elev_cos + 
-				(clock_prod_y * new_dir_z - clock_prod_z * new_dir_y) * elev_sin + 
-				clock_prod_x * param;
-			new_dir_y = new_dir_y * elev_cos + 
-				(clock_prod_z * new_dir_x - clock_prod_x * new_dir_z) * elev_sin + 
-				clock_prod_y * param;
-			new_dir_z = new_dir_z * elev_cos + 
-				(clock_prod_x * new_dir_y - clock_prod_y * new_dir_x) * elev_sin + 
-				clock_prod_z * param;
-			
-			final_ang += elev_ang;
+			elev_sin = sin(elev_ang);
+			elev_cos = cos(elev_ang);
 
   		}
+
+		// Rodrigues' rotation formula
+		param = (1 - elev_cos) * 
+			(counterclock_prod_x * new_dir_x + counterclock_prod_y * new_dir_y + counterclock_prod_z * new_dir_z);
+
+		new_dir_x = new_dir_x * elev_cos + 
+			(counterclock_prod_y * new_dir_z - counterclock_prod_z * new_dir_y) * elev_sin + 
+			counterclock_prod_x * param;
+		new_dir_y = new_dir_y * elev_cos + 
+			(counterclock_prod_z * new_dir_x - counterclock_prod_x * new_dir_z) * elev_sin + 
+			counterclock_prod_y * param;
+		new_dir_z = new_dir_z * elev_cos + 
+			(counterclock_prod_x * new_dir_y - counterclock_prod_y * new_dir_x) * elev_sin + 
+			counterclock_prod_z * param;
 		
-		if ((hit_num==1) || (hit_num == 2) || (hit_num == 3) || (hit_num == 4) || (hit_num == 5) || (hit_num == 6)){
+		final_ang += elev_ang;
+		
+		/*if ((hit_num==1) || (hit_num == 2) || (hit_num == 3) || (hit_num == 4) || (hit_num == 5) || (hit_num == 6)){
 			std::cout << "lim_up = " << rad2deg(lim_up) << endl;
 			std::cout << "lim_low = " << rad2deg(lim_low) << endl;
 			std::cout << "elev_ang = " << rad2deg(elev_ang) << endl;
 			std::cout << "final_ang = " << rad2deg(final_ang) << endl; 
-		}
-  				
+		}*/				
   	}
+
 
   	hori_buffer[0] = final_ang;
 	std::cout << "Horizon first azimuth: " << rad2deg(hori_buffer[0]) << endl;
@@ -639,8 +622,8 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	// Remaining azimuth directions (guess horizon from previous
 	// azimuth direction)
 	// ------------------------------------------------------------------------
-/*	
-	for (size_t k = 1; k < azim_num; k++){
+
+	for (size_t k = 1; k < 2; k++){
 		
 		// Rodrigues' rotation formula TO CHANGE THE AZIMUTH
 		// the norm_ vector is the rotation axis (so we'll rotate counter clockwise);  
@@ -670,10 +653,9 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 		clock_prod_z = - counterclock_prod_z;
 
 		// Move upwards to check if the horizon is higher
-		int delta = 0.15; //0.0175; // [radians]
+		float delta = 0.0175; // 1 degree in [radians]
 		float sin_delta = sin(delta);
 		float cos_delta = cos(delta);
-
 		bool hit = true;
 		int count = 0;
 
@@ -694,11 +676,13 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			new_dir_z = new_dir_z * cos_delta + 
 				(counterclock_prod_x * new_dir_y - counterclock_prod_y * new_dir_x) * sin_delta + 
 				counterclock_prod_z * param;
+			//std::cout << new_dir_x << " " << new_dir_y << " " << new_dir_z << endl;
 
   			hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
-				
+
+			//std::cout << hit << endl;	
   			num_rays += 1;
 			// increase the count for number of hitting 
 			// starting from the previous elevation angle
@@ -728,13 +712,13 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   			hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
-  			num_rays += 1;		
+  			num_rays += 1;	
 		}
 
-  		hori_buffer[k] = final_ang;
-		std::cout << "Horizon azimuth nr." << k << ": " << elev_ang << endl;
+  		hori_buffer[cell*azim_num + k] = final_ang;
+		std::cout << "Horizon azimuth nr." << k << ": " << rad2deg(hori_buffer[cell*azim_num + k]) << endl;
 	}
-*/
+
 }
 
 //#############################################################################
@@ -752,11 +736,10 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 	std::cout << "Horizon and Sky View Factor(SVF) computation with Intel Embree" << endl;
 	std::cout << "--------------------------------------------------------" << endl;
 
-    coords circ_ecef, vert_ecef, vert_enu, circ_enu, v1, v2, v3;
+    coords circ_ecef_0, circ_ecef, vert_ecef, circ_enu, vert_enu, v1, v2, v3;
     int idx1, idx2, idx3;
-    // fixing elevation to 0.0
-    vector<double> h_v(vertex, 0.0);
-    vector<double> h_c(cell, 0.0); 
+    vector<float> h_c(cell, 0.0); 
+	vector<float> h_v(vertex, 0.0);
 
     // initialize the vectors containing 
     // components of the normal vector for each triangle and of the
@@ -771,16 +754,24 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
     double dir1_x, dir1_y, dir1_z, dir2_x, dir2_y, dir2_z;
     double d, param;
 
-    circ_ecef = lonlat2ecef(clon, clat, &h_c[0], cell);
-    vert_ecef = lonlat2ecef(vlon, vlat, &h_v[0], vertex);
-	/*for (int i = 0; i < vertex; i++){
+	// circumcenters at elevation 0
+    circ_ecef_0 = lonlat2ecef(clon, clat, &h_c[0], cell);
+	// vertices at correct elevation
+    //vert_ecef = lonlat2ecef(vlon, vlat, &h_v[0], vertex);
+	vert_ecef = lonlat2ecef(vlon, vlat, topography_v, vertex);
+
+	/*for (int i = 0; i < 5; i++){
+		std::cout << topography_v[i] << endl;
+	}
+	std::cout << endl << endl;
+	for (int i = 0; i < 5; i++){
 		std::cout << "(" << vert_ecef.x[i] << ", " << vert_ecef.y[i] << ", " << vert_ecef.z[i] << ")" << " ";
 	}
-	std::cout << endl;
-	for (int i = 0; i < cell; i++){
-		std::cout << "(" << circ_ecef.x[i] << ", " << circ_ecef.y[i] << ", " << circ_ecef.z[i] << ")" << " ";
+	std::cout << endl << endl;*/
+	/*for (int i = 0; i < 5; i++){
+		std::cout << "(" << circ_ecef_0.x[i] << ", " << circ_ecef_0.y[i] << ", " << circ_ecef_0.z[i] << ")" << " ";
 	}
-	std::cout << endl;*/
+	std::cout << endl << endl;*/
 
 	/*for (int i = 0; i < 3*cell; i++){
 		std::cout << vertex_of_cell[i] << ", ";
@@ -818,19 +809,27 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 
         // compute the constant term of the plane 
         d = - norm_x[i]*vert_ecef.x[idx1] - norm_y[i]*vert_ecef.y[idx1] - norm_z[i]*vert_ecef.z[idx1];
-
+		
         // compute intersection between the line and the plane
         // note that in our case, since the origin is (0,0,0)
         // the line that we have to intersect is simply defined 
         // by the coordinates of the circumcenter 
-		param = - d / (norm_x[i]*circ_ecef.x[i] + norm_y[i]*circ_ecef.y[i] + norm_z[i]*circ_ecef.z[i]);
- 
-        intersect_x[i] = param * circ_ecef.x[i]; 
-        intersect_y[i] = param * circ_ecef.y[i]; 
-        intersect_z[i] = param * circ_ecef.z[i]; 
+		param = - d / (norm_x[i]*circ_ecef_0.x[i] + norm_y[i]*circ_ecef_0.y[i] + norm_z[i]*circ_ecef_0.z[i]);
+
+		// circumcenters at tirangles' elevation
+        intersect_x[i] = param * circ_ecef_0.x[i]; 
+        intersect_y[i] = param * circ_ecef_0.y[i]; 
+        intersect_z[i] = param * circ_ecef_0.z[i]; 
         
     }
 
+	circ_ecef.x = intersect_x;
+	circ_ecef.y = intersect_y;
+	circ_ecef.z = intersect_z;	
+	for (int i = 0; i < 5; i++){
+		std::cout << "(" << circ_ecef.x[i] << ", " << circ_ecef.y[i] << ", " << circ_ecef.z[i] << ")" << " ";
+	}
+	std::cout << endl << endl;
 
 	// --------------------------------------------------------
 	// Horizon computation with Intel Embree 
@@ -916,10 +915,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 	size_t azim_num = nhori;
 	float azim_sin = sin((deg2rad(360)/azim_num)); 
 	float azim_cos = cos((deg2rad(360)/azim_num));
-
-	// in DEGREES
-	float azim_sin_deg = sin(360/azim_num); 
-	float azim_cos_deg = cos(360/azim_num);
+	std::cout << "cos: " << azim_cos << "; sin: " << azim_sin << endl;
 
 	// horizon buffer
 	vector<float> hori_buffer(azim_num*cell, 0.0);
@@ -1007,7 +1003,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 
   		auto start_ray = std::chrono::high_resolution_clock::now();
     
-		for (int i = 0; i < 1; i++){
+		for (int i = 0; i < 2; i++){
 			std::cout << "Cell nr."<< i << endl;
 			if (mask[i] == 1){
 
@@ -1029,7 +1025,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 						hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
 						scene, num_rays, hori_buffer, vec_norm_ecef_x[i], 
 						vec_norm_ecef_y[i], vec_norm_ecef_z[i], vec_north_ecef_x[i], 
-						vec_north_ecef_y[i], vec_north_ecef_z[i], azim_sin, azim_cos);
+						vec_north_ecef_y[i], vec_north_ecef_z[i], azim_sin, azim_cos, i);
 					
 					
 					/*
@@ -1051,7 +1047,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 						scene, num_rays, hori_buffer, vec_norm_enu_x[i], 
 						vec_norm_enu_y[i], vec_norm_enu_z[i], vec_north_enu_x[i], 
 						vec_north_enu_y[i], vec_north_enu_z[i], azim_sin, azim_cos);
-					*/
+						*/
 
 					std::cout << endl;
 
