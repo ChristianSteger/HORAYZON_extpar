@@ -743,7 +743,8 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 
     // initialize the vectors containing 
     // components of the normal vector for each triangle and of the
-    // points of intersection between each triangle and the circumcenter
+    // points of intersection between each triangle 
+	// and the line that connects the circumcenter and the origin
     vector<double> norm_x(cell);
     vector<double> norm_y(cell);
     vector<double> norm_z(cell);
@@ -793,8 +794,8 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 		vertex_of_cell_buffer.push_back(vertex_of_cell[i + cell]);
 		vertex_of_cell_buffer.push_back(vertex_of_cell[i + 2*cell]);
 
-		//compute two directions that will allow 
-		// to generate the plane of the cell
+		// compute two directions that will allow 
+		// to generate the plane of each triangle
         dir1_x = vert_ecef.x[idx2] - vert_ecef.x[idx1];
         dir1_y = vert_ecef.y[idx2] - vert_ecef.y[idx1];
         dir1_z = vert_ecef.z[idx2] - vert_ecef.z[idx1];
@@ -870,7 +871,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 	}
 	//pad-buffer function
 	vert_buffer = pad_buffer(vert_buffer);
-/*
+
 	// vertex_of_cell_buffer
     int add_elem = 16;
     if ((sizeof(vertex_of_cell_buffer) % 16) != 0){
@@ -879,7 +880,7 @@ void horizon_svf_comp(double* vlon, double* vlat, double* clon,
 	for(int i=0; i < add_elem; i++){
     	vertex_of_cell_buffer.push_back((int)0);	
 	}
-*/
+
 	/*
 	for (int i = 0; i < 3*cell; i++){
 		std::cout << vertex_of_cell_buffer[i] << ", ";
