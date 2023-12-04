@@ -717,8 +717,10 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 
 		// pure geometric skyview-factor
 		for(int k = 0; k < azim_num; k++){
-			svf += (1 - sin(hori_buffer[cell * azim_num + k]));		
+			svf += (1 - sin(hori_buffer[cell * azim_num + k]));	
+			std::cout << (cell*azim_num +k) << " ";	
 		}
+		std::cout << endl;
 		svf /= azim_num;
 
 	}else if (svf_type == 2){
@@ -737,6 +739,7 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 			svf += (1 - (sin(hori_buffer[cell * azim_num + k]) 
 						* sin(hori_buffer[cell * azim_num + k]) 
 						* sin(hori_buffer[cell * azim_num + k])));
+
 		}
 		svf /= azim_num;
 
@@ -744,7 +747,7 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 		
 		// Steger et al. Sky View Factor Computation
 		float azim_spac = deg2rad(360)/azim_num;
-		float hori_plane;
+		float hori_plane, hori_elev;
 		float azim_sin = 0;
 		float azim_cos = 0;
 
@@ -756,13 +759,15 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 			// select the max between it and the elevation angle
 			hori_plane = atan( - (vec_norm_x / vec_norm_z) * azim_sin
 								- (vec_norm_y / vec_norm_z) * azim_cos );
-			if (hori_plane < hori_buffer[cell * azim_num + k]){
-				hori_plane = hori_buffer[cell * azim_num + k];
+			if (hori_buffer[cell * azim_num + k] >= hori_plane){
+				hori_elev = hori_buffer[cell * azim_num + k];
+			}else{
+				hori_elev = hori_plane;
 			}
 
 			svf += (vec_norm_x * azim_sin + vec_norm_y * azim_cos) *
-					((M_PI / 2) - hori_plane - (sin(2 * hori_plane) / 2 )) +
-					vec_norm_z * cos(hori_plane) * cos(hori_plane);
+					((M_PI / 2) - hori_elev - (sin(2 * hori_elev) / 2 )) +
+					vec_norm_z * cos(hori_elev) * cos(hori_elev);
 
 		}
 		svf = (azim_spac / (2 * M_PI)) * svf;
@@ -1016,7 +1021,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 						vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
 
 					svf_buffer[i] = _sky_view_factor(azim_num, hori_buffer, i,
-										 norm_x, norm_y, norm_z, svf_type);
+										norm_x, norm_y, norm_z, svf_type);
 					
 					std::cout << "SVF cell nr." << i << ": " << svf_buffer[i] << endl << endl;
 
@@ -1026,11 +1031,11 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		
 		}
 
-		std::cout << "Horizon buffer: " << endl;
+		/*std::cout << "Horizon buffer: " << endl;
 		for(int i=0; i<(azim_num*cell); i++){
 			std::cout << hori_buffer[i] << ", ";
 		}
-		std::cout<<endl;
+		std::cout<<endl;*/
 
   		auto end_ray = std::chrono::high_resolution_clock::now();
   		time_ray += (end_ray - start_ray);
