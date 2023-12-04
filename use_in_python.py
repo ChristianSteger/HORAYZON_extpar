@@ -11,6 +11,8 @@ from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
+import pymap3d
+
 # Path to Cython/C++ functions
 sys.path.append("/Users/csteger/Desktop/Test/")
 
@@ -36,11 +38,10 @@ clon = np.deg2rad(np.array([-0.5, 0.0, +0.5], dtype=np.float64))
 clat = np.deg2rad(np.array([+0.5, +0.5, +0.5], dtype=np.float64))
 vertex_of_cell = np.array([[5, 1, 2],
                            [4, 5, 2],
-                           [4, 2, 1]], dtype=np.int32).transpose()
+                           [4, 2, 3]], dtype=np.int32).transpose()
 mask = np.ones_like(clon, dtype=np.uint8)
 nhori = 24 
 '''
-
 # Create a test grid using a part of the ICON Grid
 cell = 14
 vertex = 13
@@ -82,6 +83,9 @@ vlon[11] = grid["vlon"][vertex_of_cell_grid[1][1168]-1].values
 vlat[11] = grid["vlat"][vertex_of_cell_grid[1][1168]-1].values
 vlon[12] = grid["vlon"][vertex_of_cell_grid[1][1163]-1].values
 vlat[12] = grid["vlat"][vertex_of_cell_grid[1][1163]-1].values
+
+
+
 
 clon[0] = grid["clon"][577].values
 clat[0] = grid["clat"][577].values
@@ -138,11 +142,9 @@ vertex_of_cell[0] = np.array([8, 2, 7, 3, 6, 4, 10, 6, 11, 7, 12, 8, 13, 1])
 vertex_of_cell[1] = np.array([2, 8, 3, 7, 4, 6, 5, 11, 6, 12, 7, 13, 8, 9])
 vertex_of_cell[2] = np.array([1, 7, 2, 6, 3, 5, 6, 10, 7, 11, 8, 12, 9, 8])
 
-mask = np.ones_like(clon, dtype=np.uint8)
-
 # print circumcenters and vertices
 # Create the Triangulation; no triangles so Delaunay triangulation created.
-triang = mpl.tri.Triangulation(vlon, vlat, (vertex_of_cell.transpose()-1))
+triang = mpl.tri.Triangulation(vlon, vlat,(vertex_of_cell.transpose() - 1))
 fig1, ax1 = plt.subplots()
 ax1.set_aspect('equal')
 plt.xlabel('longitude')
@@ -150,6 +152,12 @@ plt.ylabel('latitude')
 ax1.triplot(triang, 'bo-', lw=1)
 ax1.set_title('Triangles simple grid')
 ax1.scatter(clon, clat, s=10, c='r')
+
+mask = np.ones_like(clon, dtype=np.uint8)
+
+ellps = pymap3d.Ellipsoid(semimajor_axis=6371229.0, semiminor_axis=6371229.0)
+
+e, n, u = pymap3d.geodetic2enu(0.184092, 0.814923, 0.0, 0.183779, 0.814593, 0.0, ell=ellps, deg=False) 
 
 '''
 grid = xr.open_dataset(path_grid + grid_name)
@@ -166,83 +174,29 @@ topo = xr.open_dataset(path_topo + topo_name)
 nhori = topo["nhori"].size
 topography_v = topo["topography_v"].values
 
-
-hor = topo["HORIZON"].values
-hor = np.transpose(hor).ravel()
-print(hor[48:72])
-
-
 # reshape topography_v
 topography_v = topography_v.ravel()
 # create mask 
 mask = np.ones_like(clon, dtype=np.uint8)
 '''
+hor = topo["HORIZON"].values
+hor = np.transpose(hor).ravel()
+print(hor[0:72], "\n")
+
+svf_type = 0
+
+while(svf_type not in [1, 2, 3, 4]):
+    svf_type = int(input("How do you want to compute the Sky View Factor? \n \
+                    Please select one of the 4 options (numbers from 1 to 4) \n \
+                    1 = pure-geometric sky view factor; \n \
+                    2 = geometric scaled with sin(horizon); \n \
+                    3 = geometric scaked with sin(horizon)**2 \n \
+                    4 = Steger et al. SVF computation \n"))
 
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
-                                       clon, clat, vertex_of_cell, mask,
-                                       nhori)
+                                    clon, clat, vertex_of_cell, mask,
+                                    nhori, svf_type)
 
-
-
-
-'''
-# Description: Example of plotting points, triangles and vectors in 3D
-#
-# Author: Christian Steger, June 2021
-# Load modules
-mpl.style.use("classic")
-
-# -----------------------------------------------------------------------------
-# Draw 3D arrow
-# (source: https://github.com/matplotlib/matplotlib/issues/21688)
-# -----------------------------------------------------------------------------
-
-class Arrow3D(FancyArrowPatch):
-    def __init__(self, xs, ys, zs, *args, **kwargs):
-        super().__init__((0, 0), (0, 0), *args, **kwargs)
-        self._verts3d = xs, ys, zs
-
-    def do_3d_projection(self, renderer=None):
-        xs3d, ys3d, zs3d = self._verts3d
-        xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, self.axes.M)
-        self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
-
-        return np.min(zs)
-
-# -----------------------------------------------------------------------------
-
-
-# Test plot
-fig = plt.figure()
-ax = fig.add_subplot(111, projection="3d")
-ax.set_xlabel("x-axis")
-ax.set_ylabel("y-axis")
-ax.set_zlabel("z-axis")
-ax.set_xlim3d(-1.0, 5.0)  # x-axis limits
-ax.set_ylim3d(-1.0, 5.0)
-ax.set_zlim3d(-1.0, 5.0)
-# ------------------- plot points ---------------------------------------------
-ax.scatter(1.0, 2.0, 3.0, marker="o", s=50, color="red")
-ax.scatter(2.0, 2.0, 2.0, marker="o", s=50, color="red")
-# ------------------- plot vector (arrow) --------------------------------------
-arrow_prop_dict = dict(mutation_scale=20, arrowstyle="-|>", color="black",
-                       shrinkA=0, shrinkB=0)
-vector = Arrow3D([1, 2], [2, 2], [3, 2], **arrow_prop_dict)
-ax.add_artist(vector)
-# ------------------- plot triangles ------------------------------------------
-triangles = [
-    ((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0)),
-    # 3 vertices of first triangle (x, y, z)
-    ((0.0, 0.0, 1.5), (0.0, 1.0, 1.5), (1.0, 0.0, 1.5)),
-]
-ax.add_collection(Poly3DCollection(triangles, alpha=0.25, color="blue"))
-# -----------------------------------------------------------------------------
-plt.show()
-
-a= 0'''
-
-
-
-
+        
 
 

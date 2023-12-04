@@ -7,7 +7,8 @@ cdef extern from "horizon_svf_comp.h":
                           double* clon, double* clat, 
                           np.npy_int32* vertex_of_cell, np.npy_uint8* mask,  
                           int cell,
-                          float* horizon, float* skyview, int nhori)
+                          float* horizon, float* skyview, int nhori,
+                          int svf_type)
 
 # Interface for Python function
 def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
@@ -17,7 +18,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
                         np.ndarray[np.float64_t, ndim = 1] clat,
                         np.ndarray[np.int32_t, ndim = 2] vertex_of_cell,
                         np.ndarray[np.uint8_t, ndim = 1] mask,
-                        int nhori):
+                        int nhori,
+                        int svf_type):
     """Compute the terrain horizon and sky view factor.
 
     Parameters
@@ -39,6 +41,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
         computation (cell)
     nhori : int
         Number of terrain horizon sampling directions
+    svf_type : int
+        int that defines the method to compute the Sky View Factor
 
     Returns
     -------
@@ -76,7 +80,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     horizon_svf_comp(&vlon[0], &vlat[0], &topography_v[0], vlon.size,
                      &clon[0], &clat[0], &vertex_of_cell[0, 0], &mask[0],
                      clon.size, 
-                     &horizon[0, 0], &skyview[0], nhori)
+                     &horizon[0, 0], &skyview[0], nhori, 
+                     svf_type)
 
     return horizon, skyview
 
