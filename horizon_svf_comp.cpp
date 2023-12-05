@@ -52,7 +52,7 @@ std::vector<geom_point> lonlat2ecef(double* vlon, double* vlat,
     Returns
     -------
     points_ecef : vector of type <geom_point>
-		vector of points (x, y, z) [metre]*/
+		vector of points (x, y, z) [m]*/
 
 	vector<geom_point> points_ecef(num_point);
 	for (int i = 0; i < num_point; i++){
@@ -70,16 +70,13 @@ std::vector<geom_point> lonlat2ecef(double* vlon, double* vlat,
 
 std::vector<geom_vector> north_direction(vector<geom_point> points,
     int num_vector, vector<geom_vector> vector_normal, double rad_earth){
+    
     /*Compute unit vectors pointing towards North in earth-centered,
     earth-fixed (ECEF) coordinates. These vectors are perpendicular to surface
     normal unit vectors.*/
-    
-    // North pole in ECEF
-    geom_vector v_p = {0.0, 0.0, rad_earth};
 
-    // initialization
+    geom_vector v_p = {0.0, 0.0, rad_earth};  // north pole in ECEF coordinates
 	vector<geom_vector> vector_north(num_vector);
-
     geom_vector v_n, v_j;
     double dot_prod, v_j_mag;
     for (int i = 0; i < num_vector; i++){
@@ -105,6 +102,9 @@ std::vector<geom_vector> north_direction(vector<geom_point> points,
 
 void ecef2enu_point(vector<geom_point>& points_ecef, double lon_orig,
     double lat_orig, double rad_earth){
+
+    /*In-place coordinate transformation of points from ECEF to ENU coordinate
+    system.*/
 
     double sin_lon = sin(lon_orig);
     double cos_lon = cos(lon_orig);
@@ -136,6 +136,9 @@ void ecef2enu_point(vector<geom_point>& points_ecef, double lon_orig,
 
 void ecef2enu_vector(vector<geom_vector>& vector_ecef, double lon_orig,
     double lat_orig){
+
+    /*In-place coordinate transformation of vectors from ECEF to ENU coordinate
+    system.*/
 
     double sin_lon = sin(lon_orig);
     double cos_lon = cos(lon_orig);
@@ -173,21 +176,6 @@ inline double rad2deg(double ang) {
 	return ((ang / M_PI) * 180.0);
 }
 
-// Cross product
-/* 
-inline void cross_prod(double a_x, double a_y, double a_z,
-    double b_x, double b_y, double b_z,
-    double c_x, double c_y, double c_z) {
-	c_x = a_y * b_z - a_z * b_y;
-    c_y = a_z * b_x - a_x * b_z;
-    c_z = a_x * b_y - a_y * b_x;
-}
- */
-
-//#############################################################################
-// Miscellaneous
-//#############################################################################
-
 // Namespace
 #if defined(RTC_NAMESPACE_USE)
 	RTC_NAMESPACE_USE
@@ -208,89 +196,45 @@ RTCDevice initializeDevice() {
   	return device;
 }
 
-// ----------------------------------------------------------------------------
-
-vector<float> pad_buffer(vector<float> buffer){
-    /*Pads geometric buffer to make it conformal with 16-byte SSE load
-    instructions.
-
-    Parameters
-    ----------
-    buffer : ndarray
-        Array (one-dimensional) with geometry buffer [arbitrary]
-
-    Returns
-    -------
-    buffer : ndarray
-        Array (one-dimensional) with padded geometry buffer [arbitrary]
-
-    Notes
-    -----
-    This function ensures that vertex buffer size is divisible by 16 and hence
-    conformal with 16-byte SSE load instructions (see Embree documentation;
-    section 7.45 rtcSetSharedGeometryBuffer).*/
-
-    std::cout << "sizeof(buffer): " << sizeof(buffer) << endl;
-    std::cout << "buffer.size(): " << buffer.size() << endl;
-
-    int add_elem = 16;
-    if ((sizeof(buffer) % 16) != 0){
-        add_elem += floor(((16 - (sizeof(buffer) % 16))) / 4);
-	}
-	
-	std::cout << "sizeof(buffer): " << sizeof(buffer) << endl;
-	std::cout << "add_elem: " << add_elem << endl;
-	
-	for(int i=0; i < add_elem; i++){
-    	buffer.push_back((float)0.0);	
-	}
-	
-	std::cout << "sizeof(buffer): " << sizeof(buffer) << endl;
-
-	return buffer;
-}
-
 //#############################################################################
 // Create scene from geometries
 //#############################################################################
 
-// Structure for triangles
-struct Triangle{ int v0, v1, v2; };
+// Structures for vertices and triangle
+struct Vertex{float x, y, z;};
+struct Triangle{int v0, v1, v2;};
 // -> above structures must contain 32-bit integers (-> Embree documentation).
 //    Theoretically, these integers should be unsigned but the binary
 //    representation until 2'147'483'647 is identical between signed/unsigned
 //    integer.
 
-
 // Initialise scene
-RTCScene initializeScene(RTCDevice device, float* vert_grid, 
-	int* vertex_of_cell, int num_vert, int num_tri){ 
+RTCScene initializeScene(RTCDevice device, int* vertex_of_cell, int num_cell,
+    vector<geom_point>& vertices){
 
 	RTCScene scene = rtcNewScene(device);
   	rtcSetSceneFlags(scene, RTC_SCENE_FLAG_ROBUST);
+  	RTCGeometry geom = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);
 
-	//std::cout << *(vert_grid + 3) << " " << *(vertex_of_cell + 3) << " " << num_vert << " " << num_tri << endl << endl;
+  	// Vertices (-> convert to float)
+  	 Vertex* vertices_embree = (Vertex*) rtcSetNewGeometryBuffer(geom,
+  	    RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, sizeof(Vertex),
+  	    vertices.size());
+    for (size_t i = 0; i < vertices.size(); i++) {
+  	    vertices_embree[i].x = (float)vertices[i].x;
+  	    vertices_embree[i].y = (float)vertices[i].y;
+  	    vertices_embree[i].z = (float)vertices[i].z;
+    }
 
-  	RTCGeometry geom = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);  	
-  	rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX, 0,
-  		RTC_FORMAT_FLOAT3, vert_grid, 0, 3*sizeof(float), num_vert);  	
-	
-  	/*rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_INDEX, 0,
-  		RTC_FORMAT_UINT3, vertex_of_cell, 0, 3*sizeof(int32_t), num_tri);*/ 
-
-	// assign a INDEX data buffer to the geometry
-    Triangle* triangles = (Triangle*) rtcSetNewGeometryBuffer(geom,
+	// Cell (triangle) indices to vertices
+    Triangle* triangles_embree = (Triangle*) rtcSetNewGeometryBuffer(geom,
         RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, sizeof(Triangle),
-        num_tri);
-
-	for (int i = 0; i < num_tri; i++) {
-			triangles[i].v0 = vertex_of_cell[3 * i] - 1;
-			triangles[i].v1 = vertex_of_cell[3 * i + 1] - 1;
-			triangles[i].v2 = vertex_of_cell[3 * i + 2] - 1;
-
-			//std::cout << "triangle nr. " << i << " : (" << triangles[i].v0 << ", " << triangles[i].v1 << ", " << triangles[i].v2 << ");  ";
+        num_cell);
+	for (int i = 0; i < num_cell; i++) {
+	    triangles_embree[i].v0 = vertex_of_cell[(0 * num_cell) + i];
+	    triangles_embree[i].v1 = vertex_of_cell[(1 * num_cell) + i];
+	    triangles_embree[i].v2 = vertex_of_cell[(2 * num_cell) + i];
 	}
-	//std::cout << endl;
 
 	auto start = std::chrono::high_resolution_clock::now();
 
@@ -300,13 +244,12 @@ RTCScene initializeScene(RTCDevice device, float* vert_grid,
 	rtcAttachGeometry(scene, geom);
 	rtcReleaseGeometry(geom);
 
-	// removed the thing for outer simplified domain
 	// Commit scene
 	rtcCommitScene(scene);
 
 	auto end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> time = end - start;
-	std::cout << "BVH build time: " << time.count() << " s" << endl;
+	std::cout << "Building BVH: " << time.count() << " s" << endl;
 
 	return scene;
 
@@ -352,6 +295,40 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
   	return (ray.tfar < 0.0);
 }
 
+//-----------------------------------------------------------------------------
+// Cast single ray (intersect1; lower performance)
+//-----------------------------------------------------------------------------
+
+bool castRay_intersect1(RTCScene scene, float ox, float oy, float oz, float dx,
+	float dy, float dz, float dist_search, float &dist) {
+  
+	// Intersect context
+	struct RTCIntersectContext context;
+	rtcInitIntersectContext(&context);
+
+  	// Ray hit structure
+  	struct RTCRayHit rayhit;
+  	rayhit.ray.org_x = ox;
+  	rayhit.ray.org_y = oy;
+  	rayhit.ray.org_z = oz;
+  	rayhit.ray.dir_x = dx;
+  	rayhit.ray.dir_y = dy;
+  	rayhit.ray.dir_z = dz;
+  	rayhit.ray.tnear = 0.0;
+  	//rayhit.ray.tfar = std::numeric_limits<float>::infinity();
+  	rayhit.ray.tfar = dist_search;
+  	//rayhit.ray.mask = -1;
+  	//rayhit.ray.flags = 0;
+  	rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+  	rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
+
+  	// Intersect ray with scene
+  	rtcIntersect1(scene, &context, &rayhit);
+  	dist = rayhit.ray.tfar;
+
+  	return (rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID);
+
+}
 
 //#############################################################################
 // Horizon detection algorithms (horizon elevation angle)
@@ -661,14 +638,14 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
     }
 
     // Number of considered cells
-  	int num_cell_cons = 0; 
+  	int num_cell_cons = 0;
   	for (int i = 0; i < num_cell; i++) {
   		if (mask[i] == 1) {
   			num_cell_cons += 1;
   		}
   	}
   	std::cout << "Number of considered cells: " << num_cell_cons << endl;
-  	std::cout << "Fraction of considered cells: " 
+  	std::cout << "Fraction of considered cells: "
   	    << ((float)num_cell_cons / (float)num_cell * 100.0) << " %" << endl;
 
     // Circumcenters on surface of sphere (elevation = 0.0 m) (ECEF)
@@ -709,72 +686,40 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
     ecef2enu_vector(north_direct, lon_orig, lat_orig);
 
     // ------------------------------------------------------------------------
-    // Initialisation of BVH
+    // Building of BVH
     // ------------------------------------------------------------------------
 
-    // Create vertex buffer (of 32 bit floats) needed for the rtc scene
-	vector<float> vertex_buffer(num_vertex * 3);
-	int ind = 0;
-	std::cout << "num_vertex: " << num_vertex << endl;
-	for (int i = 0; i < num_vertex; i++){
-	    vertex_buffer[ind + 0] = (float)vertices[i].x;
-	    vertex_buffer[ind + 1] = (float)vertices[i].y;
-	    vertex_buffer[ind + 2] = (float)vertices[i].z;
-	    ind += 3;
-	}
-	std::cout << "ind:" << ind << endl;
-	vertex_buffer = pad_buffer(vertex_buffer);
+  	RTCDevice device = initializeDevice();
+  	RTCScene scene = initializeScene(device, vertex_of_cell, num_cell,
+  	    vertices);
 
+    // ------------------------------------------------------------------------
+    // Test ray casting --------------------------------------------------------> remove again later...
+    // ------------------------------------------------------------------------
+    
+    for (int i = 0; i < num_cell; i++){
+    
+        float ray_orig_x = circumcenters[i].x;
+        float ray_orig_y = circumcenters[i].y;
+        float ray_orig_z = circumcenters[i].z;
+        float ray_dir_x = -sphere_normals[i].x;
+        float ray_dir_y = -sphere_normals[i].y;
+        float ray_dir_z = -sphere_normals[i].z;
+        float dist = 0.0;
 
-
-
+        bool hit = castRay_intersect1(scene, ray_orig_x, ray_orig_y,
+            ray_orig_z, ray_dir_x, ray_dir_y, ray_dir_z, dist_search, dist);
+        std::cout << "hit: " << hit << endl;
+        std::cout << "distance to hit: " << dist << " m" << endl;
+    
+    }
 
 	std::cout << "Exit program!" << endl;
 	return;
-
-    
-
-    
-    
-	// create the vector with vertices and the indices
-	// for the creation of the RTC buffer
-	vector<int> vertex_of_cell_buffer;
-	for(int i = 0; i < num_cell; i++){
-		//creation of the buffer of indices needed for the rtc scene
-		vertex_of_cell_buffer.push_back(vertex_of_cell[i]);
-		vertex_of_cell_buffer.push_back(vertex_of_cell[i + num_cell]);
-		vertex_of_cell_buffer.push_back(vertex_of_cell[i + 2*num_cell]);
-	} 
-
-
-
-
 	
-	
-//     int add_elem = 16;
-//     if ((sizeof(vertex_of_cell_buffer) % 16) != 0){
-//         add_elem += ((16 - (sizeof(vertex_of_cell_buffer) % 16)));
-// 	}
-// 	for(int i=0; i < add_elem; i++){
-//     	vertex_of_cell_buffer.push_back((int)0);	
-// 	}
-
-
-  	// Initialization and time counting
-  	auto start_ini = std::chrono::high_resolution_clock::now();
-
-  	RTCDevice device = initializeDevice();
-  	RTCScene scene = initializeScene(device, &vertex_buffer[0], &vertex_of_cell_buffer[0], num_vertex, num_cell);
-
-  	auto end_ini = std::chrono::high_resolution_clock::now();
-  	std::chrono::duration<double> time = end_ini - start_ini;
-  	std::cout << "Total initialisation time: " << time.count() << " s" << endl;
-
     // ------------------------------------------------------------------------
     // Terrain horizon and sky view factor computation
     // ------------------------------------------------------------------------
-
-
 
 	// upper  and lower limits for elevation angle [radians]
   	float elev_ang_up_lim = deg2rad(90);  
@@ -804,7 +749,6 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	// --------------------------------------------------------
 
 
-
     	// --------------------------------------------------------------------
   		// Perform ray tracing
     	// --------------------------------------------------------------------
@@ -815,11 +759,11 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
         double dir1_x, dir1_y, dir1_z, dir2_x, dir2_y, dir2_z;
         double d, param;
 		for(int i = 0; i < num_cell; i++){
+
 			// define indices of the vertices of the triangle
-			// keep in mind that vertex_of_cell values start from 1 not 0
-			idx1 = vertex_of_cell[i] - 1;
-			idx2 = vertex_of_cell[i + num_cell] - 1;
-			idx3 = vertex_of_cell[i + 2 * num_cell] - 1;
+			idx1 = vertex_of_cell[i];
+			idx2 = vertex_of_cell[i + num_cell];
+			idx3 = vertex_of_cell[i + 2 * num_cell];
 
 			// compute two directions that will allow 
 			// to generate the plane of each triangle

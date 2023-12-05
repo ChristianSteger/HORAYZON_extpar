@@ -86,4 +86,4 @@ t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
                                        clon, clat, vertex_of_cell, mask,
                                        nhori, svf_type)
-print("Elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
+print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
