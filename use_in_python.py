@@ -1,6 +1,7 @@
 # Load modules
 import os
 import sys
+import time
 import numpy as np
 import xarray as xr
 # import matplotlib.pyplot as plt
@@ -46,6 +47,22 @@ from horizon_svf import horizon_svf_comp_py
 # svf_type = 1
 
 # -----------------------------------------------------------------------------
+# Artificial Data for testing (very large data set...)
+# -----------------------------------------------------------------------------
+
+# num_vertex = 8_000_000
+# num_cell = 20_000_000
+# vlon = np.zeros(num_vertex, dtype=np.float64)
+# vlat = np.zeros(num_vertex, dtype=np.float64)
+# topography_v = np.zeros(num_vertex, dtype=np.float32)
+# clon = np.zeros(num_cell, dtype=np.float64)
+# clat = np.zeros(num_cell, dtype=np.float64)
+# vertex_of_cell = np.zeros((3, num_cell), dtype=np.int32)
+# mask = np.ones_like(clon, dtype=np.uint8)
+# nhori = 24
+# svf_type = 1
+
+# -----------------------------------------------------------------------------
 # Artificial Data for testing 
 # -----------------------------------------------------------------------------
 
@@ -65,7 +82,8 @@ svf_type = 1
 # Compute horizon and sky view factor
 # -----------------------------------------------------------------------------
 
-
+t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
                                        clon, clat, vertex_of_cell, mask,
                                        nhori, svf_type)
+print("Elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
