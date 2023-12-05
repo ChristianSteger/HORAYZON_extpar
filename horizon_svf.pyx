@@ -42,7 +42,11 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     nhori : int
         Number of terrain horizon sampling directions
     svf_type : int
-        int that defines the method to compute the Sky View Factor
+        Method for computing the Sky View Factor (SVF)
+            1: Visible sky fraction; pure geometric skyview-factor
+            2: SVF for horizontal surface; geometric scaled with sin(horizon)
+            3: ?; geometric scaled with sin(horizon)**2
+            4: SVF for sloped surface according to HORAYZON
 
     Returns
     -------
