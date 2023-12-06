@@ -18,41 +18,27 @@
 
 using namespace std;
 
-
 //#############################################################################
-// Functions for Coordinate transformations
-// Geodetic --> ECEF
-// ECEF --> ENU
+// Geometries
 //#############################################################################
 
-struct vertex_double{
+struct geom_point{
 	double x, y, z;
 };
 
-// Convert degree to radian
-inline float deg2rad(float ang) {
-	return ((ang / 180.0) * M_PI);
-}
+struct geom_vector{
+	double x, y, z;
+};
 
-// Convert radian to degree
-inline float rad2deg(float ang) {
-	return ((ang / M_PI) * 180.0);
-}
+//#############################################################################
+// Coordinate transformation, north vector
+//#############################################################################
 
-// Cross product
-inline void cross_prod(double a_x, double a_y, double a_z, double b_x, double b_y,
-	double b_z, double c_x, double c_y, double c_z) {
-	c_x = a_y * b_z - a_z * b_y;
-    c_y = a_z * b_x - a_x * b_z;
-    c_z = a_x * b_y - a_y * b_x;
-}
+std::vector<geom_point> lonlat2ecef(double* vlon, double* vlat,
+    float* elevation, int num_point, double rad_earth){
 
-std::vector<vertex_double> lonlat2ecef(double* vlon, double* vlat, float* h, int len){
-
-    /*Coordinate transformation from lon/lat to ECEF.
-
-    Transformation of geodetic longitude/latitude to earth-centered,
-    earth-fixed (ECEF) coordinates.
+    /*Transformation of geographic longitude/latitude to earth-centered,
+    earth-fixed (ECEF) coordinates. Assume spherical Earth.
 
     Parameters
     ----------
@@ -60,285 +46,135 @@ std::vector<vertex_double> lonlat2ecef(double* vlon, double* vlat, float* h, int
         Array (one-dimensional) with geographic longitude [radian]
     vlat : array of double
         Array (one-dimensional) with geographic latitude [radian]
-    h : array of float
+    elevation : array of float
         Array (one-dimensional) with elevation above sphere [metre]
 
     Returns
     -------
-    xyz_ecef : vector of vertices
-		vector of vertices with ECEF x, y, z coordinates [metre]
-        
-    Sources
-    -------
-    - https://en.wikipedia.org/wiki/Geographic_coordinate_conversion*/
+    points_ecef : vector of type <geom_point>
+		vector of points (x, y, z) [m]*/
 
-    // initialization
-	vector<vertex_double> xyz_ecef(len);
-
-    // Spherical coordinates
-    double r = 6371229.0;  // earth radius (according to ICON documentation) [m]
-
-	/*tbb::parallel_for(tbb::blocked_range<size_t>(0, len), //parallel
-		[&](tbb::blocked_range<size_t> r){
-
-	for (size_t i = r.begin(); i < r.end(); ++i){
-		xyz_ecef[i].x = (r + h[i]) * cos(vlat[i]) * cos(vlon[i]);
-		xyz_ecef[i].y = (r + h[i]) * cos(vlat[i]) * sin(vlon[i]);
-		xyz_ecef[i].z = (r + h[i]) * sin(vlat[i]);
+	vector<geom_point> points_ecef(num_point);
+	for (int i = 0; i < num_point; i++){
+		points_ecef[i].x = (rad_earth + elevation[i]) * cos(vlat[i])
+		    * cos(vlon[i]);
+		points_ecef[i].y = (rad_earth + elevation[i]) * cos(vlat[i])
+		    * sin(vlon[i]);
+		points_ecef[i].z = (rad_earth + elevation[i]) * sin(vlat[i]);
 	}
 
-	});*/
-
-	for (int i = 0; i < len; i++){
-		xyz_ecef[i].x = (r + h[i]) * cos(vlat[i]) * cos(vlon[i]);
-		xyz_ecef[i].y = (r + h[i]) * cos(vlat[i]) * sin(vlon[i]);
-		xyz_ecef[i].z = (r + h[i]) * sin(vlat[i]);
-	}
-
-    return xyz_ecef;
+    return points_ecef;
 }
 
-// -----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
-std::vector<vertex_double> ecef2enu(vector<vertex_double> ecef_coords, int len, double lon_or, double lat_or){
-
-    /*Coordinate transformation from ECEF to ENU.
-
-    Transformation of earth-centered, earth-fixed (ECEF) to local tangent
-    plane (ENU) coordinates.
-
-    Parameters
-    ----------
-    x_ecef : array of double
-        Array (one-dimensional) with ECEF x-coordinates [metre]
-    y_ecef : array of double
-        Array (one-dimensional) with ECEF y-coordinates [metre]
-    z_ecef : array of double
-        Array (one-dimensional) with ECEF z-coordinates [metre]
-
-    Returns
-    -------
-	xyz_enu : vector of vertices
-		vector of vertices with ENU x, y, z coordinates [metre] */
-
-    // Check arguments
-    double sin_lon, cos_lon, sin_lat, cos_lat;
-	double x_ecef_or, y_ecef_or, z_ecef_or;
-    vector<vertex_double> xyz_enu(len);
-
-    // Check and change values to the latitude and longitude coordinates of the origin
-    try{    
-        if (lon_or < -180.0 || lon_or > 180.0) {
-            throw invalid_argument("Value for 'lon_or' is outside of valid range");
-        }
-        if (lat_or < -90.0 || lat_or > 90.0) {
-            throw invalid_argument("Value for 'lat_or' is outside of valid range");
-        }
-    }catch (const invalid_argument& e) {
-        cerr << "Error: " << e.what() << endl;
-    }
-
-    const double r = 6371229.0; // earth radius (according to ICON documentation) [m]
-    // origin coordinates
-    /*x_ecef_or = r * cos(lat_or) * cos(lon_or);
-    y_ecef_or = r * cos(lat_or) * sin(lon_or);
-    z_ecef_or = r * sin(lat_or);*/
-
-    // Trigonometric functions
-    sin_lon = sin(lon_or);
-    cos_lon = cos(lon_or);
-    sin_lat = sin(lat_or);
-    cos_lat = cos(lat_or);
-
-    // Coordinate transformation
-
-    // before it was 
-    // for i in prange(len_0, nogil=True, schedule="static")
-    // in which prange is to run in parallel in cython (don't know how to change it in c++)
-    /*for (int i = 0; i < len; i++ ){
-        xyz_enu[i].x = (- sin_lon * (ecef_coords[i].x - x_ecef_or) 
-                    + cos_lon * (ecef_coords[i].y - y_ecef_or));
-        xyz_enu[i].y = (- sin_lat * cos_lon * (ecef_coords[i].x - x_ecef_or)
-                    - sin_lat * sin_lon * (ecef_coords[i].y - y_ecef_or)
-                    + cos_lat * (ecef_coords[i].z - z_ecef_or));
-        xyz_enu[i].z = (+ cos_lat * cos_lon * (ecef_coords[i].x - x_ecef_or)
-                    + cos_lat * sin_lon * (ecef_coords[i].y - y_ecef_or)
-                    + sin_lat * (ecef_coords[i].z - z_ecef_or));
-    }*/
-    for (int i = 0; i < len; i++ ){
-        xyz_enu[i].x = (- sin_lon * ecef_coords[i].x 
-                    + cos_lon * ecef_coords[i].y);
-        xyz_enu[i].y = (- sin_lat * cos_lon * ecef_coords[i].x
-                    - sin_lat * sin_lon * ecef_coords[i].y
-                    + cos_lat * (ecef_coords[i].z - z_ecef_or));
-        xyz_enu[i].z = (+ cos_lat * cos_lon * ecef_coords[i].x
-                    + cos_lat * sin_lon * ecef_coords[i].y
-                    + sin_lat * ecef_coords[i].z);
-    }
-
-    return xyz_enu;
-}
-
-
-
-//#############################################################################
-// Compute normal unit vector in ECEF coordinates
-//#############################################################################
-
-std::vector<vertex_double> surf_norm(double* lon, double* lat, int len){
-    /*Compute surface normal unit vectors.
-
-    Computation of surface normal unit vectors in earth-centered, earth-fixed
-    (ECEF) coordinates.
-
-    Parameters
-    ----------
-    lon : array of double
-        Array (one-dimensional) with geographic longitude [degree]
-    lat : array of double
-        Array (one-dimensional) with geographic latitudes [degree]
-
-    Returns
-    -------
-	vec_norm_ecef : vector of directions
-		vector of directions of the surface normals in ECEF coordinates [metre]  
+std::vector<geom_vector> north_direction(vector<geom_point> points,
+    int num_vector, vector<geom_vector> vector_normal, double rad_earth){
     
-    Sources
-    -------
-    - https://en.wikipedia.org/wiki/N-vector */
+    /*Compute unit vectors pointing towards North in earth-centered,
+    earth-fixed (ECEF) coordinates. These vectors are perpendicular to surface
+    normal unit vectors.*/
 
-    double sin_lon, cos_lon, sin_lat, cos_lat;
-    vector<vertex_double> vec_norm(len);
-
-    // Compute surface normals
-    // for i in prange(len_0, nogil=True, schedule="static"):
-    for (int i = 0; i < len; i++ ){
-        sin_lon = sin(lon[i]);
-        cos_lon = cos(lon[i]);
-        sin_lat = sin(lat[i]);
-        cos_lat = cos(lat[i]);
-        vec_norm[i].x = cos_lat * cos_lon;
-        vec_norm[i].y = cos_lat * sin_lon;
-        vec_norm[i].z = sin_lat;
+    geom_vector v_p = {0.0, 0.0, rad_earth};  // north pole in ECEF coordinates
+	vector<geom_vector> vector_north(num_vector);
+    geom_vector v_n, v_j;
+    double dot_prod, v_j_mag;
+    for (int i = 0; i < num_vector; i++){
+        v_n.x = v_p.x - points[i].x;
+        v_n.y = v_p.y - points[i].y;
+        v_n.z = v_p.z - points[i].z;
+        dot_prod = ((v_n.x * vector_normal[i].x)
+            + (v_n.y * vector_normal[i].y)
+            + (v_n.z * vector_normal[i].z));
+        v_j.x = v_n.x - dot_prod * vector_normal[i].x;
+        v_j.y = v_n.y - dot_prod * vector_normal[i].y;
+        v_j.z = v_n.z - dot_prod * vector_normal[i].z;
+        v_j_mag = sqrt(v_j.x * v_j.x + v_j.y * v_j.y + v_j.z * v_j.z);
+        vector_north[i].x = v_j.x / v_j_mag;
+        vector_north[i].y = v_j.y / v_j_mag;
+        vector_north[i].z = v_j.z / v_j_mag;
     }
 
-    return vec_norm;
+    return vector_north;
 }
 
-std::vector<vertex_double> north_dir(vector<vertex_double> points, int len, vector<vertex_double> vec_norm, double lon_or, double lat_or){
-    /*Compute unit vectors pointing towards North.
+// ----------------------------------------------------------------------------
 
-    Computation unit vectors pointing towards North in earth-centered,
-    earth-fixed (ECEF) coordinates. These vectors are perpendicular to surface
-    normal unit vectors.
+void ecef2enu_point(vector<geom_point>& points_ecef, double lon_orig,
+    double lat_orig, double rad_earth){
 
-    Parameters
-    ----------
-    x_ecef : array of double
-        Array (one-dimensionals) with ECEF x-coordinates [metre]
-    y_ecef : ndarray of double
-        Array (one-dimensional) with ECEF y-coordinates [metre]
-    z_ecef : ndarray of double
-        Array (one-dimensional) with ECEF z-coordinates [metre]
+    /*In-place coordinate transformation of points from ECEF to ENU coordinate
+    system.*/
 
-    vec_norm_ecef : vector of directions  
-		vector (one-dimensional) of directions of surface normals 
-		in ECEF coordinates [metre]
+    double sin_lon = sin(lon_orig);
+    double cos_lon = cos(lon_orig);
+    double sin_lat = sin(lat_orig);
+    double cos_lat = cos(lat_orig);
 
-    Returns
-    -------
-	vec_north_ecef : vector of directions
-				vector (one-dimensional) of directions towards north 
-				in ECEF coordinates [metre]*/
+    double x_ecef_orig = rad_earth * cos(lat_orig) * cos(lon_orig);
+    double y_ecef_orig = rad_earth * cos(lat_orig) * sin(lon_orig);
+    double z_ecef_orig = rad_earth * sin(lat_orig);
 
-    double np_x, np_y, np_z;
-    double dir_north_x, dir_north_y, dir_north_z;
-    double dot_pr, vec_proj_x, vec_proj_y, vec_proj_z, norm;
-    vector<vertex_double> vec_north(len);
+    double x_enu, y_enu, z_enu;
+    for (size_t i = 0; i < points_ecef.size(); i++){
+        x_enu = - sin_lon * (points_ecef[i].x - x_ecef_orig)
+            + cos_lon * (points_ecef[i].y - y_ecef_orig);
+        y_enu = - sin_lat * cos_lon * (points_ecef[i].x - x_ecef_orig)
+            - sin_lat * sin_lon * (points_ecef[i].y - y_ecef_orig)
+            + cos_lat * (points_ecef[i].z - z_ecef_orig);
+        z_enu = + cos_lat * cos_lon * (points_ecef[i].x - x_ecef_orig)
+            + cos_lat * sin_lon * (points_ecef[i].y - y_ecef_orig)
+            + sin_lat * (points_ecef[i].z - z_ecef_orig);
+        points_ecef[i].x = x_enu;
+        points_ecef[i].y = y_enu;
+        points_ecef[i].z = z_enu;
+    }
 
-	double r = 6371229.0;  // earth radius [m]
+}
 
-    // Trigonometric functions
-    double sin_lon = sin(lon_or);
-    double cos_lon = cos(lon_or);
-    double sin_lat = sin(lat_or);
-    double cos_lat = cos(lat_or);
+// ----------------------------------------------------------------------------
 
-    // Coordinates of North pole in ECEF
-    np_x = 0.0;
-    np_y = 0.0;
-    np_z = r;
+void ecef2enu_vector(vector<geom_vector>& vector_ecef, double lon_orig,
+    double lat_orig){
 
-	//north pole from ECEF to ENU
-	
-	np_x = (- sin_lon * np_x + cos_lon * np_y);
-	np_y = (- sin_lat * cos_lon * np_x 
-				- sin_lat * sin_lon * np_y
-				+ cos_lat * np_z);
-	np_z = (+ cos_lat * cos_lon * np_x
-				+ cos_lat * sin_lon * np_y
-				+ sin_lat * np_z);
-	
-	//std::cout << "Origin: (" << np_x << ", " << np_y << ", " << np_z << ")" << endl;
-    // Coordinate transformation
-    for (int i = 0; i < len; i++){
+    /*In-place coordinate transformation of vectors from ECEF to ENU coordinate
+    system.*/
 
-		/*if (i == 0){
-			std::cout << "Point: (" << points[i].x << ", " << points[i].y << ", " 
-				<< points[i].z << ");" << endl;
-		}*/
+    double sin_lon = sin(lon_orig);
+    double cos_lon = cos(lon_orig);
+    double sin_lat = sin(lat_orig);
+    double cos_lat = cos(lat_orig);
 
-        // Vector to North Pole
-        dir_north_x = (np_x - points[i].x);
-        dir_north_y = (np_y - points[i].y);
-        dir_north_z = (np_z - points[i].z);
+    double x_enu, y_enu, z_enu;
+    for (size_t i = 0; i < vector_ecef.size(); i++){
+        x_enu = - sin_lon * vector_ecef[i].x
+            + cos_lon * vector_ecef[i].y;
+        y_enu = - sin_lat * cos_lon * vector_ecef[i].x
+            - sin_lat * sin_lon * vector_ecef[i].y
+            + cos_lat * vector_ecef[i].z;
+        z_enu = + cos_lat * cos_lon * vector_ecef[i].x
+            + cos_lat * sin_lon * vector_ecef[i].y
+            + sin_lat * vector_ecef[i].z;
+        vector_ecef[i].x = x_enu;
+        vector_ecef[i].y = y_enu;
+        vector_ecef[i].z = z_enu;
+    }
 
-		/*if (i == 0){
-			std::cout << "Vector to North Pole: (" << dir_north_x << ", " << dir_north_y << ", " 
-				<< dir_north_z << ");" << endl;
-		}*/
-
-        // Project vector to North Pole on surface normal plane
-        dot_pr = ((dir_north_x * vec_norm[i].x)
-                  + (dir_north_y * vec_norm[i].y)
-                  + (dir_north_z * vec_norm[i].z));
-		
-		/*if (i == 0){
-			std::cout << "  Scalar product: " << dot_pr << ";" << endl;
-		}*/
-
-        vec_proj_x = dir_north_x - dot_pr * vec_norm[i].x;
-        vec_proj_y = dir_north_y - dot_pr * vec_norm[i].y;
-        vec_proj_z = dir_north_z - dot_pr * vec_norm[i].z;
-
-		/*if (i == 0){
-			std::cout << "Vector projection on surface normal plane: (" 
-				<< vec_proj_x << ", " << vec_proj_y << ", " << vec_proj_z << ");" << endl;
-		}*/
-
-        // Normalise vector
-        norm = sqrt(vec_proj_x * vec_proj_x + vec_proj_y * vec_proj_y + vec_proj_z * vec_proj_z);
-
-		/*if (i == 0){
-			std::cout << "Norm: " << norm << endl;
-		}*/
-
-		vec_north[i].x = (vec_proj_x / norm);
-        vec_north[i].y = (vec_proj_y / norm);
-        vec_north[i].z = (vec_proj_z / norm);
-		/*if (i == 0){
-			std::cout << "Vector projection on surface normal plane: (" 
-				<< vec_north[i].x << ", " << vec_north[i].y << ", " << vec_north[i].z << ");" << endl;
-		}*/		
-
-	}	
-
-    return vec_north;
 }
 
 //#############################################################################
 // Miscellaneous
 //#############################################################################
+
+// Convert degree to radian
+inline double deg2rad(double ang) {
+	return ((ang / 180.0) * M_PI);
+}
+
+// Convert radian to degree
+inline double rad2deg(double ang) {
+	return ((ang / M_PI) * 180.0);
+}
 
 // Namespace
 #if defined(RTC_NAMESPACE_USE)
@@ -360,50 +196,45 @@ RTCDevice initializeDevice() {
   	return device;
 }
 
-
-
-
 //#############################################################################
 // Create scene from geometries
 //#############################################################################
 
-// Structure for triangles
-struct Triangle{ int v0, v1, v2; };
+// Structures for vertices and triangle
+struct Vertex{float x, y, z;};
+struct Triangle{int v0, v1, v2;};
 // -> above structures must contain 32-bit integers (-> Embree documentation).
 //    Theoretically, these integers should be unsigned but the binary
 //    representation until 2'147'483'647 is identical between signed/unsigned
 //    integer.
 
-
 // Initialise scene
-RTCScene initializeScene(RTCDevice device, float* vert_grid, 
-	int* vertex_of_cell, int num_vert, int num_tri){ 
+RTCScene initializeScene(RTCDevice device, int* vertex_of_cell, int num_cell,
+    vector<geom_point>& vertices){
 
 	RTCScene scene = rtcNewScene(device);
   	rtcSetSceneFlags(scene, RTC_SCENE_FLAG_ROBUST);
+  	RTCGeometry geom = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);
 
-	//std::cout << *(vert_grid + 3) << " " << *(vertex_of_cell + 3) << " " << num_vert << " " << num_tri << endl << endl;
+  	// Vertices (-> convert to float)
+  	 Vertex* vertices_embree = (Vertex*) rtcSetNewGeometryBuffer(geom,
+  	    RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, sizeof(Vertex),
+  	    vertices.size());
+    for (size_t i = 0; i < vertices.size(); i++) {
+  	    vertices_embree[i].x = (float)vertices[i].x;
+  	    vertices_embree[i].y = (float)vertices[i].y;
+  	    vertices_embree[i].z = (float)vertices[i].z;
+    }
 
-  	RTCGeometry geom = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);  	
-  	rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX, 0,
-  		RTC_FORMAT_FLOAT3, vert_grid, 0, 3*sizeof(float), num_vert);  	
-	
-  	/*rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_INDEX, 0,
-  		RTC_FORMAT_UINT3, vertex_of_cell, 0, 3*sizeof(int32_t), num_tri);*/ 
-
-	// assign a INDEX data buffer to the geometry
-    Triangle* triangles = (Triangle*) rtcSetNewGeometryBuffer(geom,
+	// Cell (triangle) indices to vertices
+    Triangle* triangles_embree = (Triangle*) rtcSetNewGeometryBuffer(geom,
         RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, sizeof(Triangle),
-        num_tri);
-
-	for (int i = 0; i < num_tri; i++) {
-			triangles[i].v0 = vertex_of_cell[3 * i] - 1;
-			triangles[i].v1 = vertex_of_cell[3 * i + 1] - 1;
-			triangles[i].v2 = vertex_of_cell[3 * i + 2] - 1;
-
-			//std::cout << "triangle nr. " << i << " : (" << triangles[i].v0 << ", " << triangles[i].v1 << ", " << triangles[i].v2 << ");  ";
+        num_cell);
+	for (int i = 0; i < num_cell; i++) {
+	    triangles_embree[i].v0 = vertex_of_cell[(0 * num_cell) + i];
+	    triangles_embree[i].v1 = vertex_of_cell[(1 * num_cell) + i];
+	    triangles_embree[i].v2 = vertex_of_cell[(2 * num_cell) + i];
 	}
-	//std::cout << endl;
 
 	auto start = std::chrono::high_resolution_clock::now();
 
@@ -413,50 +244,17 @@ RTCScene initializeScene(RTCDevice device, float* vert_grid,
 	rtcAttachGeometry(scene, geom);
 	rtcReleaseGeometry(geom);
 
-	// removed the thing for outer simplified domain
 	// Commit scene
 	rtcCommitScene(scene);
 
 	auto end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> time = end - start;
-	std::cout << "BVH build time: " << time.count() << " s" << endl;
+	std::cout << "Building BVH: " << time.count() << " s" << endl;
 
 	return scene;
 
 }
 
-vector<float> pad_buffer(vector<float> buffer){
-    /*Padding of geometry buffer.
-
-    Pads geometric buffer to make it conformal with 16-byte SSE load
-    instructions.
-
-    Parameters
-    ----------
-    buffer : ndarray
-        Array (one-dimensional) with geometry buffer [arbitrary]
-
-    Returns
-    -------
-    buffer : ndarray
-        Array (one-dimensional) with padded geometry buffer [arbitrary]
-
-    Notes
-    -----
-    This function ensures that vertex buffer size is divisible by 16 and hence
-    conformal with 16-byte SSE load instructions (see Embree documentation;
-    section 7.45 rtcSetSharedGeometryBuffer).*/
-
-    int add_elem = 16;
-    if ((sizeof(buffer) % 16) != 0){
-        add_elem += ((16 - (sizeof(buffer) % 16)));
-	}
-	for(int i=0; i < add_elem; i++){
-    	buffer.push_back((float)0.0);	
-	}
-
-	return buffer;
-}
 //#############################################################################
 // Ray casting
 //#############################################################################
@@ -497,6 +295,40 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
   	return (ray.tfar < 0.0);
 }
 
+//-----------------------------------------------------------------------------
+// Cast single ray (intersect1; lower performance)
+//-----------------------------------------------------------------------------
+
+bool castRay_intersect1(RTCScene scene, float ox, float oy, float oz, float dx,
+	float dy, float dz, float dist_search, float &dist) {
+  
+	// Intersect context
+	struct RTCIntersectContext context;
+	rtcInitIntersectContext(&context);
+
+  	// Ray hit structure
+  	struct RTCRayHit rayhit;
+  	rayhit.ray.org_x = ox;
+  	rayhit.ray.org_y = oy;
+  	rayhit.ray.org_z = oz;
+  	rayhit.ray.dir_x = dx;
+  	rayhit.ray.dir_y = dy;
+  	rayhit.ray.dir_z = dz;
+  	rayhit.ray.tnear = 0.0;
+  	//rayhit.ray.tfar = std::numeric_limits<float>::infinity();
+  	rayhit.ray.tfar = dist_search;
+  	//rayhit.ray.mask = -1;
+  	//rayhit.ray.flags = 0;
+  	rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+  	rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
+
+  	// Intersect ray with scene
+  	rtcIntersect1(scene, &context, &rayhit);
+  	dist = rayhit.ray.tfar;
+
+  	return (rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID);
+
+}
 
 //#############################################################################
 // Horizon detection algorithms (horizon elevation angle)
@@ -512,7 +344,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	RTCScene scene, size_t &num_rays, vector<float>& hori_buffer,
 	float norm_x, float norm_y, float norm_z,
 	float north_x, float north_y, float north_z,
-	float azim_sin, float azim_cos, int cell) {
+	float azim_sin, float azim_cos, int num_cell) {
 
 	// ------------------------------------------------------------------------
   	// First azimuth direction (binary search - faster)
@@ -595,8 +427,8 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   	}
 
 
-  	hori_buffer[cell * azim_num] = final_ang;
-	std::cout << "Horizon first azimuth: " << rad2deg(hori_buffer[cell * azim_num]) << endl;
+  	hori_buffer[num_cell * azim_num] = final_ang;
+	std::cout << "Horizon first azimuth: " << rad2deg(hori_buffer[num_cell * azim_num]) << endl;
 	// initialize the variable containing the previous azimuth value
   	float prev_elev_ang = final_ang;
 
@@ -698,16 +530,16 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			//std::cout << "Final angle: " << rad2deg(final_ang) << endl;
 		}
 
-  		//hori_buffer[cell * azim_num + k] = final_ang;
-		//std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(hori_buffer[cell*azim_num + k]) << endl;
- 		hori_buffer[cell * azim_num + k] = final_ang;
-		std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(hori_buffer[cell * azim_num + k]) << endl;
+  		//hori_buffer[num_cell * azim_num + k] = final_ang;
+		//std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(hori_buffer[num_cell*azim_num + k]) << endl;
+ 		hori_buffer[num_cell * azim_num + k] = final_ang;
+		std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(hori_buffer[num_cell * azim_num + k]) << endl;
 	}
 
 }
 
 
-float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
+float _sky_view_factor(int azim_num, vector<float> hori_buffer, int num_cell,
                         float vec_norm_x, float vec_norm_y, float vec_norm_z, int svf_type){
 
     // Sky view factor (SVF) computation.
@@ -717,8 +549,8 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 
 		// pure geometric skyview-factor
 		for(int k = 0; k < azim_num; k++){
-			svf += (1 - sin(hori_buffer[cell * azim_num + k]));	
-			std::cout << (cell*azim_num +k) << " ";	
+			svf += (1 - sin(hori_buffer[num_cell * azim_num + k]));	
+			std::cout << (num_cell*azim_num +k) << " ";	
 		}
 		std::cout << endl;
 		svf /= azim_num;
@@ -727,8 +559,8 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 
 		// geometric scaled with sin(horizon)
 		for(int k = 0; k < azim_num; k++){
-			svf += (1 - (sin(hori_buffer[cell * azim_num + k]) 
-					* sin(hori_buffer[cell * azim_num + k])));
+			svf += (1 - (sin(hori_buffer[num_cell * azim_num + k]) 
+					* sin(hori_buffer[num_cell * azim_num + k])));
 		}
 		svf /= azim_num;
 
@@ -736,9 +568,9 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 
 		// geometric scaled with sin(horizon)
 		for(int k = 0; k < azim_num; k++){
-			svf += (1 - (sin(hori_buffer[cell * azim_num + k]) 
-						* sin(hori_buffer[cell * azim_num + k]) 
-						* sin(hori_buffer[cell * azim_num + k])));
+			svf += (1 - (sin(hori_buffer[num_cell * azim_num + k]) 
+						* sin(hori_buffer[num_cell * azim_num + k]) 
+						* sin(hori_buffer[num_cell * azim_num + k])));
 
 		}
 		svf /= azim_num;
@@ -759,8 +591,8 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 			// select the max between it and the elevation angle
 			hori_plane = atan( - (vec_norm_x / vec_norm_z) * azim_sin
 								- (vec_norm_y / vec_norm_z) * azim_cos );
-			if (hori_buffer[cell * azim_num + k] >= hori_plane){
-				hori_elev = hori_buffer[cell * azim_num + k];
+			if (hori_buffer[num_cell * azim_num + k] >= hori_plane){
+				hori_elev = hori_buffer[num_cell * azim_num + k];
 			}else{
 				hori_elev = hori_plane;
 			}
@@ -777,137 +609,136 @@ float _sky_view_factor(int azim_num, vector<float> hori_buffer, int cell,
 }
 
 //#############################################################################
-// MAIN FUNCTION
+// Main function
 //#############################################################################
 
+void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
+	int num_vertex,
+	double* clon, double* clat,  int* vertex_of_cell, uint8_t* mask,
+    int num_cell,
+	float* horizon, float* skyview, int nhori, int svf_type){
 
-void horizon_svf_comp(double* vlon, double* vlat, float* topography_v, 
-	int n_vert, 
-	double* clon, double* clat,  int* vertex_of_cell, uint8_t* mask, 
-    int cell, 
-	float* horizon, float* skyview, int nhori, 
-	int svf_type){
+    // Settings and constants
+    float hori_acc_deg = 1;  // horizon accuracy [degree]
+    float ray_org_elev= 0.5;  // fix elevation offset [m]; before: 0.1
+    float dist_search = 50000;  // horizon search distance [m]
+    double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
+
+    // ------------------------------------------------------------------------
+    // Pre-processing of data (coordinate transformation, etc.)
+    // ------------------------------------------------------------------------
+
+    std::cout << "---------------------------------------------" << endl;
+	std::cout << "Horizon and SVF computation with Intel Embree" << endl;
+	std::cout << "---------------------------------------------" << endl;
+
+    // Adjust vertex indices (Fortran -> C; start with index 0)
+    for (int i = 0; i < (num_cell * 3); i++){
+        vertex_of_cell[i] -= 1;
+    }
+
+    // Number of considered cells
+  	int num_cell_cons = 0;
+  	for (int i = 0; i < num_cell; i++) {
+  		if (mask[i] == 1) {
+  			num_cell_cons += 1;
+  		}
+  	}
+  	std::cout << "Number of considered cells: " << num_cell_cons << endl;
+  	std::cout << "Fraction of considered cells: "
+  	    << ((float)num_cell_cons / (float)num_cell * 100.0) << " %" << endl;
+
+    // Circumcenters on surface of sphere (elevation = 0.0 m) (ECEF)
+    vector<float> h_c(num_cell, 0.0);
+    vector<geom_point> circumcenters = lonlat2ecef(clon, clat, &h_c[0],
+        num_cell, rad_earth);
+
+    // Cell vertices (ECEF)
+	vector<geom_point> vertices = lonlat2ecef(vlon, vlat, topography_v,
+	    num_vertex, rad_earth);
+
+    // Sphere normals for circumcenters (ECEF)
+    vector<geom_vector> sphere_normals(num_cell);
+    for (int i = 0; i < num_cell; i++){
+        sphere_normals[i].x = circumcenters[i].x / rad_earth;
+        sphere_normals[i].y = circumcenters[i].y / rad_earth;
+        sphere_normals[i].z = circumcenters[i].z / rad_earth;
+    }
+
+    // North vectors for circumcenters (ECEF)
+    vector<geom_vector> north_direct = north_direction(circumcenters, num_cell,
+        sphere_normals, rad_earth);
+
+    // Origin of ENU coordinate system
+	double lon_orig = 0.0;
+	double lat_orig = 0.0;
+	for (int i = 0; i < num_cell; i++){
+		lon_orig += clon[i];
+		lat_orig += clat[i];
+	}
+	lon_orig /= num_cell;
+	lat_orig /= num_cell;
+
+	// In-place transformation from ECEF to ENU
+    ecef2enu_point(circumcenters, lon_orig, lat_orig, rad_earth);
+    ecef2enu_point(vertices, lon_orig, lat_orig, rad_earth);
+    ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
+    ecef2enu_vector(north_direct, lon_orig, lat_orig);
+
+    // ------------------------------------------------------------------------
+    // Building of BVH
+    // ------------------------------------------------------------------------
+
+  	RTCDevice device = initializeDevice();
+  	RTCScene scene = initializeScene(device, vertex_of_cell, num_cell,
+  	    vertices);
+
+    // ------------------------------------------------------------------------
+    // Test ray casting --------------------------------------------------------> remove again later...
+    // ------------------------------------------------------------------------
     
-    int nv = 3;  // number of vertices per cell
+    for (int i = 0; i < num_cell; i++){
+    
+        float ray_orig_x = circumcenters[i].x;
+        float ray_orig_y = circumcenters[i].y;
+        float ray_orig_z = circumcenters[i].z;
+        float ray_dir_x = -sphere_normals[i].x;
+        float ray_dir_y = -sphere_normals[i].y;
+        float ray_dir_z = -sphere_normals[i].z;
+        float dist = 0.0;
 
-    std::cout << "--------------------------------------------------------" << endl;
-	std::cout << "Horizon and Sky View Factor(SVF) computation with Intel Embree" << endl;
-	std::cout << "--------------------------------------------------------" << endl;
+        bool hit = castRay_intersect1(scene, ray_orig_x, ray_orig_y,
+            ray_orig_z, ray_dir_x, ray_dir_y, ray_dir_z, dist_search, dist);
+        std::cout << "hit: " << hit << endl;
+        std::cout << "distance to hit: " << dist << " m" << endl;
+    
+    }
 
-	vector<vertex_double> vertices(n_vert), circumcenters(cell);
-	//vector<vertex_float> vertices_f(n_vert), circumcenters_f(cell);
-    int idx1, idx2, idx3;
-    vector<float> h_c(cell, 0.0);
-
-    double dir1_x, dir1_y, dir1_z, dir2_x, dir2_y, dir2_z;
-    double d, param;
-	double lon_or = 0.0;
-	double lat_or = 0.0;
-
-	// circumcenters at elevation 0
-    circumcenters = lonlat2ecef(clon, clat, &h_c[0], cell);
-
-	// vertices at correct elevation
-	vertices = lonlat2ecef(vlon, vlat, topography_v, n_vert);
-
-	// origin for ENU coords
-	for (int i = 0; i < cell; i++){
-
-		lon_or += clon[i];
-		lat_or += clat[i];
-	}
-
-	lon_or /= cell;
-	lat_or /= cell;
-	//std::cout << "Lon_or: " << lon_or << " Lat_or: " << lat_or <<endl;
-
-	circumcenters = ecef2enu(circumcenters, cell, lon_or, lat_or);
-	vertices = ecef2enu(vertices, n_vert, lon_or, lat_or);
-
-	// create the vector with vertices and the indices
-	// for the creation of the RTC buffer
-	vector<float> vert_buffer;	
-	vector<int> vertex_of_cell_buffer;
-
-  	// Compute vectors normal to the surface in the circumcenters
-	vector<vertex_double> vec_norm = circumcenters;
-
-	double abs_val;
-	for(int i = 0; i < cell; i++){
-		//normalization of the surface normals
-		abs_val = sqrt(circumcenters[i].x * circumcenters[i].x + circumcenters[i].y * circumcenters[i].y + circumcenters[i].z * circumcenters[i].z);
-		vec_norm[i].x /= abs_val;
-		vec_norm[i].y /= abs_val;
-		vec_norm[i].z /= abs_val;
-
-		//creation of the buffer of indices needed for the rtc scene
-		vertex_of_cell_buffer.push_back(vertex_of_cell[i]);
-		vertex_of_cell_buffer.push_back(vertex_of_cell[i + cell]);
-		vertex_of_cell_buffer.push_back(vertex_of_cell[i + 2*cell]);
-	} 
-
-	// north vectors in the circumcenters
-	vector<vertex_double> vec_north = north_dir(circumcenters, cell, vec_norm, lon_or, lat_or);
-
-	for (int i = 0; i < n_vert; i++){
-		//creation of the buffer of vertex needed for the rtc scene
-		vert_buffer.push_back((float)vertices[i].x);
-		vert_buffer.push_back((float)vertices[i].y);
-		vert_buffer.push_back((float)vertices[i].z);
-	}
-
-	// pad for vert_buffer
-	vert_buffer = pad_buffer(vert_buffer);
-	// pad for vertex_of_cell_buffer
-    int add_elem = 16;
-    if ((sizeof(vertex_of_cell_buffer) % 16) != 0){
-        add_elem += ((16 - (sizeof(vertex_of_cell_buffer) % 16)));
-	}
-	for(int i=0; i < add_elem; i++){
-    	vertex_of_cell_buffer.push_back((int)0);	
-	}
-
+	std::cout << "Exit program!" << endl;
+	return;
+	
+    // ------------------------------------------------------------------------
+    // Terrain horizon and sky view factor computation
+    // ------------------------------------------------------------------------
 
 	// upper  and lower limits for elevation angle [radians]
   	float elev_ang_up_lim = deg2rad(90);  
 	float elev_ang_low_lim = deg2rad(-90);
 
-	float hori_acc_deg = 1; // horizon accuracy [degrees]
+
 	float hori_acc = deg2rad(hori_acc_deg);
-	float dist_search = 20000;  // [meter]
-
-	// number of azimuth sectors
-	float hori_buffer_size_max = 1.5;	
-
-	// fix elevation offset [meter]
-	float ray_org_elev= 0.5; //0.1;
+	
+	
 	// fix angle for azimuth rotation [radians]
 	size_t azim_num = nhori;
 	float azim_sin = sin((deg2rad(360)/azim_num)); 
 	float azim_cos = cos((deg2rad(360)/azim_num));
 
 	// horizon buffer
-	vector<float> hori_buffer(azim_num*cell, 0.0);
+	vector<float> hori_buffer(azim_num*num_cell, 0.0);
 	// Sky View Factor buffer
-	vector<float> svf_buffer(cell, 0.0);
+	vector<float> svf_buffer(num_cell, 0.0);
 
-  	int num_gc = 0; // number of grid triangles visited 
-  	for (size_t i = 0; i < (size_t)(cell); i++) {
-  		if (mask[i] == 1) {
-  			num_gc += 1;
-  		}
-  	}
-  	printf("Number of grid cells for which horizon is computed: %d \n",
-  		num_gc);
-  	std::cout << "Fraction of total number of grid cells: " << ((float)num_gc 
-  		/ (float)cell * 100.0) << " %" << endl;
-
-
-	// compute the size of the buffer for the current grid
-	float hori_buffer_size = (((float)cell 
-		* (float)azim_num * 4.0) / pow(10.0, 9.0));
-	std::cout << "Total memory required for horizon output: " 
-			  << hori_buffer_size << " GB" << endl;
 
 	size_t num_rays = 0;
   	std::chrono::duration<double> time_ray = std::chrono::seconds(0);
@@ -917,23 +748,6 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	// Horizon computation with Intel Embree 
 	// --------------------------------------------------------
 
-  	// Initialization and time counting
-  	auto start_ini = std::chrono::high_resolution_clock::now();
-
-  	RTCDevice device = initializeDevice();
-  	RTCScene scene = initializeScene(device, &vert_buffer[0], &vertex_of_cell_buffer[0], n_vert, cell);
-
-  	auto end_ini = std::chrono::high_resolution_clock::now();
-  	std::chrono::duration<double> time = end_ini - start_ini;
-  	std::cout << "Total initialisation time: " << time.count() << " s" << endl;
-
-    // ------------------------------------------------------------------------
-  	// Compute and save horizon in one iteration
-    // ------------------------------------------------------------------------
-	
-    if (hori_buffer_size <= hori_buffer_size_max) {
-    
-    	cout << "Compute and save horizon in one iteration" << endl << endl;
 
     	// --------------------------------------------------------------------
   		// Perform ray tracing
@@ -941,12 +755,15 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 
   		auto start_ray = std::chrono::high_resolution_clock::now();
 
-		for(int i = 0; i < cell; i++){
+        int idx1, idx2, idx3;
+        double dir1_x, dir1_y, dir1_z, dir2_x, dir2_y, dir2_z;
+        double d, param;
+		for(int i = 0; i < num_cell; i++){
+
 			// define indices of the vertices of the triangle
-			// keep in mind that vertex_of_cell values start from 1 not 0
-			idx1 = vertex_of_cell[i] - 1;
-			idx2 = vertex_of_cell[i + cell] - 1;
-			idx3 = vertex_of_cell[i + 2 * cell] - 1;
+			idx1 = vertex_of_cell[i];
+			idx2 = vertex_of_cell[i + num_cell];
+			idx3 = vertex_of_cell[i + 2 * num_cell];
 
 			// compute two directions that will allow 
 			// to generate the plane of each triangle
@@ -984,14 +801,14 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 			std::cout << "Circum " << i << " (" << circumcenters[i].x << ", " << circumcenters[i].y << ", " << circumcenters[i].z << ")   " ; 
 
 			// Transfor the Norm and North vectors from double to float
-			float vec_norm_x = (float)vec_norm[i].x;
-			float vec_norm_y = (float)vec_norm[i].y;
-			float vec_norm_z = (float)vec_norm[i].z;
+			float vec_norm_x = (float)sphere_normals[i].x;
+			float vec_norm_y = (float)sphere_normals[i].y;
+			float vec_norm_z = (float)sphere_normals[i].z;
 			std::cout << "Norm " << i << " (" << vec_norm_x << ", " << vec_norm_y << ", " << vec_norm_z << ")   " ;
 
-			float vec_north_x = (float)vec_north[i].x;
-			float vec_north_y = (float)vec_north[i].y;
-			float vec_north_z = (float)vec_north[i].z;      
+			float vec_north_x = (float)north_direct[i].x;
+			float vec_north_y = (float)north_direct[i].y;
+			float vec_north_z = (float)north_direct[i].z;      
 			std::cout << "North " << i << " (" << vec_north_x << ", " << vec_north_y << ", " << vec_north_z << ")   " << endl;
 
 			float circ_x = (float)circumcenters[i].x;
@@ -1023,7 +840,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 					svf_buffer[i] = _sky_view_factor(azim_num, hori_buffer, i,
 										norm_x, norm_y, norm_z, svf_type);
 					
-					std::cout << "SVF cell nr." << i << ": " << svf_buffer[i] << endl << endl;
+					std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl;
 
 			}else{
 
@@ -1032,14 +849,13 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		}
 
 		/*std::cout << "Horizon buffer: " << endl;
-		for(int i=0; i<(azim_num*cell); i++){
+		for(int i=0; i<(azim_num*num_cell); i++){
 			std::cout << hori_buffer[i] << ", ";
 		}
 		std::cout<<endl;*/
 
   		auto end_ray = std::chrono::high_resolution_clock::now();
   		time_ray += (end_ray - start_ray);
-	}
 
     return ;
 }
