@@ -71,7 +71,7 @@ std::vector<geom_point> lonlat2ecef(double* vlon, double* vlat,
 std::vector<geom_vector> north_direction(vector<geom_point> points,
     int num_vector, vector<geom_vector> vector_normal, double rad_earth){
     
-    /*Compute unit vectors pointing towards North in earth-centered,
+    /* Compute unit vectors pointing towards North in earth-centered,
     earth-fixed (ECEF) coordinates. These vectors are perpendicular to surface
     normal unit vectors.*/
 
@@ -103,7 +103,7 @@ std::vector<geom_vector> north_direction(vector<geom_point> points,
 void ecef2enu_point(vector<geom_point>& points_ecef, double lon_orig,
     double lat_orig, double rad_earth){
 
-    /*In-place coordinate transformation of points from ECEF to ENU coordinate
+    /* In-place coordinate transformation of points from ECEF to ENU coordinate
     system.*/
 
     double sin_lon = sin(lon_orig);
@@ -285,8 +285,8 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
   	ray.dir_z = dz;
 	// ray segment
   	ray.tnear = 0.0;
-  	ray.tfar = std::numeric_limits<float>::infinity();
-  	//ray.tfar = dist_search;
+  	//ray.tfar = std::numeric_limits<float>::infinity();
+  	ray.tfar = dist_search;
 
   	// Intersect ray with scene - function that checks
 	// wheter there is a hit with the scene
@@ -356,7 +356,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 
 	// elev_ang in my case is the angle that defines
 	// the rotation angle for Rodrigues' formula
-  	float elev_ang = 0; // (abs(lim_up) - abs(lim_low)) / 2.0;
+  	float elev_ang = (abs(lim_up) - abs(lim_low)) / 2.0;
 	float elev_sin, elev_cos;
 
 	// final_ang is the angle that describes 
@@ -364,7 +364,6 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	float final_ang = elev_ang;
 
 	float counterclock_prod_x, counterclock_prod_y, counterclock_prod_z;
-
 	// cross product to then have the normal axis 
 	// that allows a counter-clockwise rotation
 	counterclock_prod_x = north_y * norm_z - north_z * norm_y;
@@ -372,6 +371,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	counterclock_prod_z = north_x * norm_y - north_y * norm_x;
 
 	float new_dir_x, new_dir_y, new_dir_z;
+	float dir_x, dir_y, dir_z;
 	new_dir_x = north_x;
 	new_dir_y = north_y;
 	new_dir_z = north_z;
@@ -386,51 +386,54 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   		num_rays += 1;
   		
   		if (hit) {
-
 			hit_num++;
   			lim_low = final_ang;
 			elev_ang = (lim_up - lim_low) / 2.0;
-
   		} else {
-
 			hit_num++;
   			lim_up = final_ang;		
 			elev_ang = - (lim_up - lim_low) / 2.0;
-
   		}
 
 		elev_sin = sin(elev_ang);
-		elev_cos = cos(elev_ang);
+		elev_cos = cos(elev_ang);	
 
 		// Rodrigues' rotation formula
 		param = (1 - elev_cos) * 
 			(counterclock_prod_x * new_dir_x + counterclock_prod_y * new_dir_y + counterclock_prod_z * new_dir_z);
+		
+		dir_x = new_dir_x;
+		dir_y = new_dir_y;
+		dir_z = new_dir_z;
 
-		new_dir_x = new_dir_x * elev_cos + 
-			(counterclock_prod_y * new_dir_z - counterclock_prod_z * new_dir_y) * elev_sin + 
+		new_dir_x = dir_x * elev_cos + 
+			(counterclock_prod_y * dir_z - counterclock_prod_z * dir_y) * elev_sin + 
 			counterclock_prod_x * param;
 		new_dir_y = new_dir_y * elev_cos + 
-			(counterclock_prod_z * new_dir_x - counterclock_prod_x * new_dir_z) * elev_sin + 
+			(counterclock_prod_z * dir_x - counterclock_prod_x * dir_z) * elev_sin + 
 			counterclock_prod_y * param;
-		new_dir_z = new_dir_z * elev_cos + 
-			(counterclock_prod_x * new_dir_y - counterclock_prod_y * new_dir_x) * elev_sin + 
+		new_dir_z = dir_z * elev_cos + 
+			(counterclock_prod_x * dir_y - counterclock_prod_y * dir_x) * elev_sin + 
 			counterclock_prod_z * param;
 		
 		final_ang += elev_ang;
-		
-	/*if ((hit_num==1) || (hit_num == 2) || (hit_num == 3) || (hit_num == 4) || (hit_num == 5) || (hit_num == 6)){
-		std::cout << "lim_up = " << rad2deg(lim_up) << endl;
-		std::cout << "lim_low = " << rad2deg(lim_low) << endl;
-		std::cout << "elev_ang = " << rad2deg(elev_ang) << endl;
-		std::cout << "final_ang = " << rad2deg(final_ang) << endl; 			
-	}*/		
+/* 		if ((hit_num==1) || (hit_num == 2) || (hit_num == 3) || (hit_num == 4) || (hit_num == 5) || (hit_num == 6)){
+			std::cout << "lim_up = " << rad2deg(lim_up) << endl;
+			std::cout << "lim_low = " << rad2deg(lim_low) << endl;
+			std::cout << "elev_ang = " << rad2deg(elev_ang) << endl; 	
+			std::cout << "final_ang = " << rad2deg(final_ang) << endl<<endl; 			
+		} */		 	
   	}
 
-
-  	hori_buffer[num_cell * azim_num] = final_ang;
-	std::cout << "Horizon first azimuth: " << rad2deg(hori_buffer[num_cell * azim_num]) << endl;
-	// initialize the variable containing the previous azimuth value
-  	float prev_elev_ang = final_ang;
+	
+   	if (rad2deg(final_ang) >= 0){
+  		hori_buffer[num_cell * azim_num] = final_ang;
+	} else {
+		hori_buffer[num_cell * azim_num] = 0.0;	
+		//final_ang = 0.0;
+	} 
+	//hori_buffer[num_cell * azim_num] = final_ang;
+	std::cout << "Horizon first azimuth: " << rad2deg(final_ang) << endl;
 
 	// ------------------------------------------------------------------------
 	// Remaining azimuth directions (guess horizon from previous
@@ -446,26 +449,31 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 		float param = (1 - azim_cos) * 
 			(norm_x * new_dir_x + norm_y * new_dir_y + norm_z * new_dir_z);
 
-		new_dir_x = new_dir_x * azim_cos + 
-			(norm_y * new_dir_z - norm_z * new_dir_y) * azim_sin + 
+		dir_x = new_dir_x;
+		dir_y = new_dir_y;
+		dir_z = new_dir_z;
+		//std::cout << "NEW AZIM: " << " (" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
+		new_dir_x = dir_x * azim_cos + 
+			(norm_y * dir_z - norm_z * dir_y) * azim_sin + 
 			norm_x * param;
-		new_dir_y = new_dir_y * azim_cos + 
-			(norm_z * new_dir_x - norm_x * new_dir_z) * azim_sin + 
+		new_dir_y = dir_y * azim_cos + 
+			(norm_z * dir_x - norm_x * dir_z) * azim_sin + 
 			norm_y * param;
-		new_dir_z = new_dir_z * azim_cos + 
-			(norm_x * new_dir_y - norm_y * new_dir_x) * azim_sin + 
+		new_dir_z = dir_z * azim_cos + 
+			(norm_x * dir_y - norm_y * dir_x) * azim_sin + 
 			norm_z * param;
+		//std::cout << "Initial direction: (" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
 
 		// now focus on elevation rotation
 		// cross product to then have a counter-clockwise rotation
 		counterclock_prod_x = new_dir_y * norm_z - new_dir_z * norm_y;
 		counterclock_prod_y = new_dir_z * norm_x - new_dir_x * norm_z;
 		counterclock_prod_z = new_dir_x * norm_y - new_dir_y * norm_x;
-
+		
 		// Move upwards to check if the horizon is higher
-		float delta = 0.0175; // 1 degree in [radians]
-		float sin_delta = sin(delta);
-		float cos_delta = cos(delta);
+		double delta = deg2rad(1); // 1 degree in [radians]
+		double sin_delta = sin(delta);
+		double cos_delta = cos(delta);
 		bool hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
@@ -478,28 +486,29 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			// Rodrigues' rotation formula
 			param = (1 - cos_delta) * 
 				(counterclock_prod_x * new_dir_x + counterclock_prod_y * new_dir_y + counterclock_prod_z * new_dir_z);
+			
+			dir_x = new_dir_x;
+			dir_y = new_dir_y;
+			dir_z = new_dir_z;
 
-			new_dir_x = new_dir_x * cos_delta + 
-				(counterclock_prod_y * new_dir_z - counterclock_prod_z * new_dir_y) * sin_delta + 
+			new_dir_x = dir_x * cos_delta + 
+				(counterclock_prod_y * dir_z - counterclock_prod_z * dir_y) * sin_delta + 
 				counterclock_prod_x * param;
-			new_dir_y = new_dir_y * cos_delta + 
-				(counterclock_prod_z * new_dir_x - counterclock_prod_x * new_dir_z) * sin_delta + 
+			new_dir_y = dir_y * cos_delta + 
+				(counterclock_prod_z * dir_x - counterclock_prod_x * dir_z) * sin_delta + 
 				counterclock_prod_y * param;
-			new_dir_z = new_dir_z * cos_delta + 
-				(counterclock_prod_x * new_dir_y - counterclock_prod_y * new_dir_x) * sin_delta + 
+			new_dir_z = dir_z * cos_delta + 
+				(counterclock_prod_x * dir_y - counterclock_prod_y * dir_x) * sin_delta + 
 				counterclock_prod_z * param;
-			//std::cout << "(" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
-
+			
   			hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
 
-			//std::cout << hit << endl;	
   			num_rays += 1;
 			// increase the count for number of hitting 
 			// starting from the previous elevation angle
   			count += 1;		
-			//std::cout << "Final angle: " << rad2deg(final_ang) << endl;
 		}
 
 		// discrete ray sampling until it hits the topography
@@ -508,104 +517,140 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 
 			// Rodrigues' rotation formula
 			param = (1 - cos_delta) * 
-				((- counterclock_prod_x) * new_dir_x + (- counterclock_prod_y) * new_dir_y + (- counterclock_prod_z) * new_dir_z);
+				(counterclock_prod_x * new_dir_x + counterclock_prod_y * new_dir_y + counterclock_prod_z * new_dir_z);
 
-			new_dir_x = new_dir_x * cos_delta + 
-				((- counterclock_prod_y) * new_dir_z - (- counterclock_prod_z) * new_dir_y) * sin_delta + 
-				(- counterclock_prod_x) * param;
-			new_dir_y = new_dir_y * cos_delta + 
-				((- counterclock_prod_z) * new_dir_x - (- counterclock_prod_x) * new_dir_z) * sin_delta + 
-				(- counterclock_prod_y) * param;
-			new_dir_z = new_dir_z * cos_delta + 
-				((- counterclock_prod_x) * new_dir_y - (- counterclock_prod_y) * new_dir_x) * sin_delta + 
-				(- counterclock_prod_z) * param;
-			//std::cout << "(" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
+			dir_x = new_dir_x;
+			dir_y = new_dir_y;
+			dir_z = new_dir_z;
+
+			new_dir_x = dir_x * cos_delta + 
+				(counterclock_prod_y * dir_z - counterclock_prod_z * dir_y) * (- sin_delta) + 
+				counterclock_prod_x * param;
+			new_dir_y = dir_y * cos_delta + 
+				(counterclock_prod_z * dir_x - counterclock_prod_x * dir_z) * (- sin_delta) + 
+				counterclock_prod_y * param;
+			new_dir_z = dir_z * cos_delta + 
+				(counterclock_prod_x * dir_y - counterclock_prod_y * dir_x) * (- sin_delta) + 
+				counterclock_prod_z * param;
 
   			hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
 
-			//std::cout << hit << endl;
   			num_rays += 1;	
-			//std::cout << "Final angle: " << rad2deg(final_ang) << endl;
+			count +=1;
 		}
 
-  		//hori_buffer[num_cell * azim_num + k] = final_ang;
-		//std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(hori_buffer[num_cell*azim_num + k]) << endl;
- 		hori_buffer[num_cell * azim_num + k] = final_ang;
-		std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(hori_buffer[num_cell * azim_num + k]) << endl;
+   	 	if (rad2deg(final_ang) >= 0){
+ 			hori_buffer[num_cell * azim_num + k] = final_ang;
+		} else { 
+			hori_buffer[num_cell * azim_num + k] = 0.0; 
+			//final_ang = 0.0;
+		}  
+		//std::cout << "FINAL DIR: (" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
+		std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(final_ang) << endl; 
 	}
 
 }
 
+//-----------------------------------------------------------------------------
+// Declare function pointer and assign function
+//-----------------------------------------------------------------------------
 
-float _sky_view_factor(int azim_num, vector<float> hori_buffer, int num_cell,
-                        float vec_norm_x, float vec_norm_y, float vec_norm_z, int svf_type){
+float (*function_pointer)(int azim_num, vector<float> hori_buffer, 
+						int num_cell, float vec_norm_x, float vec_norm_y, 
+						float vec_norm_z);
 
-    // Sky view factor (SVF) computation.
+//#############################################################################
+// Sky View Factor computation algorithms
+//#############################################################################
+
+//-----------------------------------------------------------------------------
+// pure geometric skyview-factor
+//-----------------------------------------------------------------------------
+
+float pure_geometric_svf(int azim_num, vector<float> hori_buffer, int num_cell,
+                        float vec_norm_x, float vec_norm_y, float vec_norm_z){
+
 	float svf = 0;
+	for(int k = 0; k < azim_num; k++){
+		svf += (1 - sin(hori_buffer[num_cell * azim_num + k]));	
+	}
+	svf /= azim_num;
 
-	if(svf_type == 1){
+    return svf;
+}
 
-		// pure geometric skyview-factor
-		for(int k = 0; k < azim_num; k++){
-			svf += (1 - sin(hori_buffer[num_cell * azim_num + k]));	
-			std::cout << (num_cell*azim_num +k) << " ";	
-		}
-		std::cout << endl;
-		svf /= azim_num;
+//-----------------------------------------------------------------------------
+// skyview-factor computation scaled with sin(horizon)
+//-----------------------------------------------------------------------------
+float geometric_svf_scaled_1(int azim_num, vector<float> hori_buffer, 
+							int num_cell, float vec_norm_x, float vec_norm_y,
+							float vec_norm_z){
 
-	}else if (svf_type == 2){
+	float svf = 0;
+	for(int k = 0; k < azim_num; k++){
+		svf += (1 - (sin(hori_buffer[num_cell * azim_num + k]) 
+				* sin(hori_buffer[num_cell * azim_num + k])));
+	}
+	svf /= azim_num;
 
-		// geometric scaled with sin(horizon)
-		for(int k = 0; k < azim_num; k++){
-			svf += (1 - (sin(hori_buffer[num_cell * azim_num + k]) 
+	return svf;
+}
+
+//-----------------------------------------------------------------------------
+// skyview-factor computation scaled with sin(horizon)**2
+//-----------------------------------------------------------------------------
+float geometric_svf_scaled_2(int azim_num, vector<float> hori_buffer, 
+							int num_cell, float vec_norm_x, float vec_norm_y,
+							float vec_norm_z){
+
+	float svf = 0;
+	for(int k = 0; k < azim_num; k++){
+		svf += (1 - (sin(hori_buffer[num_cell * azim_num + k]) 
+					* sin(hori_buffer[num_cell * azim_num + k]) 
 					* sin(hori_buffer[num_cell * azim_num + k])));
-		}
-		svf /= azim_num;
-
-	}else if (svf_type == 3){
-
-		// geometric scaled with sin(horizon)
-		for(int k = 0; k < azim_num; k++){
-			svf += (1 - (sin(hori_buffer[num_cell * azim_num + k]) 
-						* sin(hori_buffer[num_cell * azim_num + k]) 
-						* sin(hori_buffer[num_cell * azim_num + k])));
-
-		}
-		svf /= azim_num;
-
-	}else{
-		
-		// Steger et al. Sky View Factor Computation
-		float azim_spac = deg2rad(360)/azim_num;
-		float hori_plane, hori_elev;
-		float azim_sin = 0;
-		float azim_cos = 0;
-
-		for(int k = 0; k < azim_num; k++){
-			azim_sin = sin(k * (azim_spac));
-			azim_cos = cos(k * (azim_spac));
-			
-			// compute plane-sphere intersection and
-			// select the max between it and the elevation angle
-			hori_plane = atan( - (vec_norm_x / vec_norm_z) * azim_sin
-								- (vec_norm_y / vec_norm_z) * azim_cos );
-			if (hori_buffer[num_cell * azim_num + k] >= hori_plane){
-				hori_elev = hori_buffer[num_cell * azim_num + k];
-			}else{
-				hori_elev = hori_plane;
-			}
-
-			svf += (vec_norm_x * azim_sin + vec_norm_y * azim_cos) *
-					((M_PI / 2) - hori_elev - (sin(2 * hori_elev) / 2 )) +
-					vec_norm_z * cos(hori_elev) * cos(hori_elev);
-
-		}
-		svf = (azim_spac / (2 * M_PI)) * svf;
 
 	}
-    return svf;
+	svf /= azim_num;
+
+	return svf;
+}
+
+//-----------------------------------------------------------------------------
+// skyview-factor for sloped surface according to HORAYZON
+//-----------------------------------------------------------------------------
+float sky_view_factor(int azim_num, vector<float> hori_buffer, 
+							int num_cell, float vec_norm_x, float vec_norm_y,
+							float vec_norm_z){
+
+	float svf = 0;
+	float azim_spac = deg2rad(360)/azim_num;
+	float hori_plane, hori_elev;
+	float azim_sin = 0;
+	float azim_cos = 0;
+
+	for(int k = 0; k < azim_num; k++){
+		azim_sin = sin(k * (azim_spac));
+		azim_cos = cos(k * (azim_spac));
+		
+		// compute plane-sphere intersection and
+		// select the max between it and the elevation angle
+		hori_plane = atan( - (vec_norm_x / vec_norm_z) * azim_sin
+							- (vec_norm_y / vec_norm_z) * azim_cos );
+		if (hori_buffer[num_cell * azim_num + k] >= hori_plane){
+			hori_elev = hori_buffer[num_cell * azim_num + k];
+		}else{
+			hori_elev = hori_plane;
+		}
+
+		svf += (vec_norm_x * azim_sin + vec_norm_y * azim_cos) *
+				((M_PI / 2) - hori_elev - (sin(2 * hori_elev) / 2 )) +
+				vec_norm_z * cos(hori_elev) * cos(hori_elev);
+	}
+	svf = (azim_spac / (2 * M_PI)) * svf;
+
+	return svf;
 }
 
 //#############################################################################
@@ -636,17 +681,6 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
     for (int i = 0; i < (num_cell * 3); i++){
         vertex_of_cell[i] -= 1;
     }
-
-    // Number of considered cells
-  	int num_cell_cons = 0;
-  	for (int i = 0; i < num_cell; i++) {
-  		if (mask[i] == 1) {
-  			num_cell_cons += 1;
-  		}
-  	}
-  	std::cout << "Number of considered cells: " << num_cell_cons << endl;
-  	std::cout << "Fraction of considered cells: "
-  	    << ((float)num_cell_cons / (float)num_cell * 100.0) << " %" << endl;
 
     // Circumcenters on surface of sphere (elevation = 0.0 m) (ECEF)
     vector<float> h_c(num_cell, 0.0);
@@ -696,7 +730,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
     // ------------------------------------------------------------------------
     // Test ray casting --------------------------------------------------------> remove again later...
     // ------------------------------------------------------------------------
-    
+/*    
     for (int i = 0; i < num_cell; i++){
     
         float ray_orig_x = circumcenters[i].x;
@@ -716,7 +750,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 
 	std::cout << "Exit program!" << endl;
 	return;
-	
+*/	
     // ------------------------------------------------------------------------
     // Terrain horizon and sky view factor computation
     // ------------------------------------------------------------------------
@@ -725,7 +759,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
   	float elev_ang_up_lim = deg2rad(90);  
 	float elev_ang_low_lim = deg2rad(-90);
 
-
+	// horizon accuracy [degree] --> [radians]
 	float hori_acc = deg2rad(hori_acc_deg);
 	
 	
@@ -739,6 +773,21 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	// Sky View Factor buffer
 	vector<float> svf_buffer(num_cell, 0.0);
 
+	// Select algorithm for sky view factor computation
+	cout << "Sky View Factor computation algorithm: ";
+	if (svf_type == 1) {
+		cout << "pure geometric svf." << endl;		
+		function_pointer = pure_geometric_svf;
+	} else if (svf_type == 2) {
+		cout << "geometric scaled with sin(horizon)." << endl;
+		function_pointer = geometric_svf_scaled_1;
+	} else if (svf_type == 3) {
+		cout << "geometric scaled with sin(horizon)**2." << endl;
+		function_pointer = geometric_svf_scaled_2;
+	} else if (svf_type == 4){
+		cout << "SVF for sloped surface according to HORAYZON." << endl;
+		function_pointer = sky_view_factor;		
+	}
 
 	size_t num_rays = 0;
   	std::chrono::duration<double> time_ray = std::chrono::seconds(0);
@@ -749,113 +798,102 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	// --------------------------------------------------------
 
 
-    	// --------------------------------------------------------------------
-  		// Perform ray tracing
-    	// --------------------------------------------------------------------
+	// --------------------------------------------------------------------
+	// Perform ray tracing
+	// --------------------------------------------------------------------
 
-  		auto start_ray = std::chrono::high_resolution_clock::now();
+	auto start_ray = std::chrono::high_resolution_clock::now();
 
-        int idx1, idx2, idx3;
-        double dir1_x, dir1_y, dir1_z, dir2_x, dir2_y, dir2_z;
-        double d, param;
-		for(int i = 0; i < num_cell; i++){
+	int idx1, idx2, idx3;
+	double dir1_x, dir1_y, dir1_z, dir2_x, dir2_y, dir2_z;
+	double d, param;
+	for(int i = 0; i < num_cell; i++){
 
-			// define indices of the vertices of the triangle
-			idx1 = vertex_of_cell[i];
-			idx2 = vertex_of_cell[i + num_cell];
-			idx3 = vertex_of_cell[i + 2 * num_cell];
+		// define indices of the vertices of the triangle
+		idx1 = vertex_of_cell[i];
+		idx2 = vertex_of_cell[i + num_cell];
+		idx3 = vertex_of_cell[i + 2 * num_cell];
 
-			// compute two directions that will allow 
-			// to generate the plane of each triangle
-			dir1_x = vertices[idx2].x - vertices[idx1].x;
-			dir1_y = vertices[idx2].y - vertices[idx1].y;
-			dir1_z = vertices[idx2].z - vertices[idx1].z;
-			dir2_x = vertices[idx3].x - vertices[idx1].x;
-			dir2_y = vertices[idx3].y - vertices[idx1].y;
-			dir2_z = vertices[idx3].z - vertices[idx1].z;
+		// compute two directions that will allow 
+		// to generate the plane of each triangle
+		dir1_x = vertices[idx2].x - vertices[idx1].x;
+		dir1_y = vertices[idx2].y - vertices[idx1].y;
+		dir1_z = vertices[idx2].z - vertices[idx1].z;
+		dir2_x = vertices[idx3].x - vertices[idx1].x;
+		dir2_y = vertices[idx3].y - vertices[idx1].y;
+		dir2_z = vertices[idx3].z - vertices[idx1].z;
 
-			// compute coeffiecients of the normal of the trg
-			double norm_x = dir1_y * dir2_z - dir1_z * dir2_y;
-			double norm_y = dir1_z * dir2_x - dir1_x * dir2_z;
-			double norm_z = dir1_x * dir2_y - dir1_y * dir2_x;
+		// compute coeffiecients of the normal of the trg
+		double norm_x = dir1_y * dir2_z - dir1_z * dir2_y;
+		double norm_y = dir1_z * dir2_x - dir1_x * dir2_z;
+		double norm_z = dir1_x * dir2_y - dir1_y * dir2_x;
 
-			double abs_val = sqrt(norm_x * norm_x + norm_y * norm_y + norm_z * norm_z);
+		double abs_val = sqrt(norm_x * norm_x + norm_y * norm_y + norm_z * norm_z);
 
-			norm_x = norm_x/abs_val;
-			norm_y = norm_y/abs_val;
-			norm_z = norm_z/abs_val;
-			
-			// compute the constant term of the plane 
-			d = - norm_x * vertices[idx1].x - norm_y * vertices[idx1].y - norm_z * vertices[idx1].z;
-			
-			// compute intersection between the line and the plane
-			// note that in our case, since the origin is (0,0,0)
-			// the line that we have to intersect is simply defined 
-			// by the coordinates of the circumcenter 
-			param = - d / (norm_x * circumcenters[i].x + norm_y * circumcenters[i].y + norm_z * circumcenters[i].z);
-
-			// circumcenters at tirangles' elevation
-			circumcenters[i].x *= param; 
-			circumcenters[i].y *= param; 
-			circumcenters[i].z *= param; 
-			std::cout << "Circum " << i << " (" << circumcenters[i].x << ", " << circumcenters[i].y << ", " << circumcenters[i].z << ")   " ; 
-
-			// Transfor the Norm and North vectors from double to float
-			float vec_norm_x = (float)sphere_normals[i].x;
-			float vec_norm_y = (float)sphere_normals[i].y;
-			float vec_norm_z = (float)sphere_normals[i].z;
-			std::cout << "Norm " << i << " (" << vec_norm_x << ", " << vec_norm_y << ", " << vec_norm_z << ")   " ;
-
-			float vec_north_x = (float)north_direct[i].x;
-			float vec_north_y = (float)north_direct[i].y;
-			float vec_north_z = (float)north_direct[i].z;      
-			std::cout << "North " << i << " (" << vec_north_x << ", " << vec_north_y << ", " << vec_north_z << ")   " << endl;
-
-			float circ_x = (float)circumcenters[i].x;
-			float circ_y = (float)circumcenters[i].y;
-			float circ_z = (float)circumcenters[i].z;  
-
-			if (mask[i] == 1){
-
-  					// Ray origin ECEF CASE
-					
-  					float ray_org_x = circ_x 
-  						+ vec_norm_x * ray_org_elev;
-  					float ray_org_y = circ_y 
-  						+ vec_norm_y * ray_org_elev;
-  					float ray_org_z = circ_z 
-  						+ vec_norm_z * ray_org_elev;
-
-					//std::cout << "Ray origin: (" << ray_org_x << ", " << ray_org_y << ", " << ray_org_z << ")" << endl;
-					
-					//std::cout << "Vec norm ecef: (" << vec_norm_ecef_x[i] << ", " << vec_norm_ecef_y[i] << ", " << vec_norm_ecef_z[i] << ")" << endl;
-					//std::cout << "Vec north ecef: (" << vec_north_ecef_x[i] << ", " << vec_north_ecef_y[i] << ", " << vec_north_ecef_z[i] << ")" << endl;
-					
-					ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
-						hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
-						scene, num_rays, hori_buffer, vec_norm_x, 
-						vec_norm_y, vec_norm_z, vec_north_x, 
-						vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
-
-					svf_buffer[i] = _sky_view_factor(azim_num, hori_buffer, i,
-										norm_x, norm_y, norm_z, svf_type);
-					
-					std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl;
-
-			}else{
-
-			}
+		norm_x = norm_x/abs_val;
+		norm_y = norm_y/abs_val;
+		norm_z = norm_z/abs_val;
 		
-		}
+		// compute the constant term of the plane 
+		d = - norm_x * vertices[idx1].x - norm_y * vertices[idx1].y - norm_z * vertices[idx1].z;
+		
+		// compute intersection between the line and the plane
+		// note that in our case, since the origin is (0,0,0)
+		// the line that we have to intersect is simply defined 
+		// by the coordinates of the circumcenter 
+		param = - d / (norm_x * circumcenters[i].x + norm_y * circumcenters[i].y + norm_z * circumcenters[i].z);
 
-		/*std::cout << "Horizon buffer: " << endl;
-		for(int i=0; i<(azim_num*num_cell); i++){
-			std::cout << hori_buffer[i] << ", ";
-		}
-		std::cout<<endl;*/
+		// circumcenters at tirangles' elevation
+		circumcenters[i].x *= param; 
+		circumcenters[i].y *= param; 
+		circumcenters[i].z *= param; 
 
-  		auto end_ray = std::chrono::high_resolution_clock::now();
-  		time_ray += (end_ray - start_ray);
+		// Transfor the Norm and North vectors from double to float
+		float vec_norm_x = (float)sphere_normals[i].x;
+		float vec_norm_y = (float)sphere_normals[i].y;
+		float vec_norm_z = (float)sphere_normals[i].z;
+
+		float vec_north_x = (float)north_direct[i].x;
+		float vec_north_y = (float)north_direct[i].y;
+		float vec_north_z = (float)north_direct[i].z;     
+
+		// citcumcenters from double to float
+		float circ_x = (float)circumcenters[i].x;
+		float circ_y = (float)circumcenters[i].y;
+		float circ_z = (float)circumcenters[i].z;  
+
+		// Ray-tracing origin	
+		float ray_org_x = circ_x 
+			+ vec_norm_x * ray_org_elev;
+		float ray_org_y = circ_y 
+			+ vec_norm_y * ray_org_elev;
+		float ray_org_z = circ_z 
+			+ vec_norm_z * ray_org_elev;
+		
+		if (i == 3000){
+			std::cout << "Vec North: (" << vec_north_x << ", " << vec_north_y << ", " << vec_north_z << ")" <<endl;
+			ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
+				hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
+				scene, num_rays, hori_buffer, vec_norm_x, 
+				vec_norm_y, vec_norm_z, vec_north_x, 
+				vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
+		
+			//std::cout << endl;
+			svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
+								norm_x, norm_y, norm_z);
+			
+			std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl; 
+		}
+	}  
+
+	/*std::cout << "Horizon buffer: " << endl;
+	for(int i=0; i<(azim_num*num_cell); i++){
+		std::cout << hori_buffer[i] << ", ";
+	}
+	std::cout<<endl;*/
+
+	auto end_ray = std::chrono::high_resolution_clock::now();
+	time_ray += (end_ray - start_ray);
 
     return ;
 }

@@ -5,7 +5,7 @@ cdef extern from "horizon_svf_comp.h":
     void horizon_svf_comp(double* vlon, double* vlat, float* topography_v, 
                           int vertex, 
                           double* clon, double* clat, 
-                          np.npy_int32* vertex_of_cell, np.npy_uint8* mask,  
+                          np.npy_int32* vertex_of_cell,  
                           int cell,
                           float* horizon, float* skyview, int nhori,
                           int svf_type)
@@ -17,7 +17,6 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
                         np.ndarray[np.float64_t, ndim = 1] clon,
                         np.ndarray[np.float64_t, ndim = 1] clat,
                         np.ndarray[np.int32_t, ndim = 2] vertex_of_cell,
-                        np.ndarray[np.uint8_t, ndim = 1] mask,
                         int nhori,
                         int svf_type):
     """Compute the terrain horizon and sky view factor.
@@ -36,9 +35,6 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
         Array with latitude of cell circumcenters (cell) [radian]
     vertex_of_cell : ndarray of int
         Array with indices of cell vertices (3, cell)
-    mask : ndarray of integers
-        Array with cells considered for terrain horizon and sky view factor 
-        computation (cell)
     nhori : int
         Number of terrain horizon sampling directions
     svf_type : int
@@ -59,10 +55,9 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     if (vlon.size != vlat.size) or (vlat.size != topography_v.size):
         raise ValueError("Inconsistent lengths of input arrays 'vlon',"
                          "'vlat' and 'topography_v'")
-    if ((clon.size != clat.size) or (clat.size != vertex_of_cell.shape[1])
-            or (clat.size != mask.size)):
+    if ((clon.size != clat.size) or (clat.size != vertex_of_cell.shape[1])):
         raise ValueError("Inconsistent lengths of input arrays 'clon',"
-                         "'clat', 'vertex_of_cell' and 'mask'")
+                         "'clat', and 'vertex_of_cell'")
     if vertex_of_cell.shape[0] != 3:
         raise ValueError("First dimension of 'vertex_of_cell' must have "
                             + "length 3")
@@ -82,7 +77,7 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
 
     # Call C++ function and pass arguments
     horizon_svf_comp(&vlon[0], &vlat[0], &topography_v[0], vlon.size,
-                     &clon[0], &clat[0], &vertex_of_cell[0, 0], &mask[0],
+                     &clon[0], &clat[0], &vertex_of_cell[0, 0],
                      clon.size, 
                      &horizon[0, 0], &skyview[0], nhori, 
                      svf_type)
