@@ -24,7 +24,7 @@ from horizon_svf import horizon_svf_comp_py
 # Real data
 # -----------------------------------------------------------------------------
 
-""" # Load grid information
+# Load grid information
 file_grid = "icon_grid_DOM01.nc"
 ds = xr.open_dataset(path_extpar + file_grid)
 vlon = ds["vlon"].values  # (num_vertex; float64)
@@ -41,13 +41,13 @@ nhori = ds["nhori"].size
 topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 ds.close()
 
-svf_type = 1 """
+svf_type = 1
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing (very large data set...)
 # -----------------------------------------------------------------------------
 
-num_vertex = 8_000_000
+""" num_vertex = 8_000_000
 num_cell = 20_000_000
 vlon = np.zeros(num_vertex, dtype=np.float64)
 vlat = np.zeros(num_vertex, dtype=np.float64)
@@ -56,7 +56,7 @@ clon = np.zeros(num_cell, dtype=np.float64)
 clat = np.zeros(num_cell, dtype=np.float64)
 vertex_of_cell = np.zeros((3, num_cell), dtype=np.int32)
 nhori = 24
-svf_type = 1 
+svf_type = 1  """
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing 

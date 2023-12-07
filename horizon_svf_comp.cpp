@@ -659,7 +659,7 @@ float sky_view_factor(int azim_num, vector<float> hori_buffer,
 
 void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	int num_vertex,
-	double* clon, double* clat,  int* vertex_of_cell, uint8_t* mask,
+	double* clon, double* clat,  int* vertex_of_cell,
     int num_cell,
 	float* horizon, float* skyview, int nhori, int svf_type){
 
@@ -678,7 +678,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	std::cout << "---------------------------------------------" << endl;
 
     // Adjust vertex indices (Fortran -> C; start with index 0)
-    for (int i = 0; i < (num_cell * 3); i++){
+for (int i = 0; i < (num_cell * 3); i++){
         vertex_of_cell[i] -= 1;
     }
 
@@ -719,12 +719,12 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
     ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
     ecef2enu_vector(north_direct, lon_orig, lat_orig);
 
-    // ------------------------------------------------------------------------
+	    // ------------------------------------------------------------------------
     // Building of BVH
     // ------------------------------------------------------------------------
 
   	RTCDevice device = initializeDevice();
-  	RTCScene scene = initializeScene(device, vertex_of_cell, num_cell,
+	RTCScene scene = initializeScene(device, vertex_of_cell, num_cell,
   	    vertices);
 
     // ------------------------------------------------------------------------
@@ -870,18 +870,18 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		float ray_org_z = circ_z 
 			+ vec_norm_z * ray_org_elev;
 		
-		ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
-			hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
-			scene, num_rays, hori_buffer, vec_norm_x, 
-			vec_norm_y, vec_norm_z, vec_north_x, 
-			vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
-	
-		//std::cout << endl;
-		svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
-							norm_x, norm_y, norm_z);
+					ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
+				hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
+				scene, num_rays, hori_buffer, vec_norm_x, 
+				vec_norm_y, vec_norm_z, vec_north_x, 
+				vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
 		
-		std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl; 
-	}  
+			//std::cout << endl;
+			svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
+								norm_x, norm_y, norm_z);
+			
+			std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl; 
+			}  
 
 	/*std::cout << "Horizon buffer: " << endl;
 	for(int i=0; i<(azim_num*num_cell); i++){
