@@ -857,7 +857,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		float vec_north_y = (float)north_direct[i].y;
 		float vec_north_z = (float)north_direct[i].z;     
 
-		// citcumcenters from double to float
+		// circumcenters from double to float
 		float circ_x = (float)circumcenters[i].x;
 		float circ_y = (float)circumcenters[i].y;
 		float circ_z = (float)circumcenters[i].z;  
@@ -870,20 +870,17 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		float ray_org_z = circ_z 
 			+ vec_norm_z * ray_org_elev;
 		
-		if (i == 3000){
-			std::cout << "Vec North: (" << vec_north_x << ", " << vec_north_y << ", " << vec_north_z << ")" <<endl;
-			ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
-				hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
-				scene, num_rays, hori_buffer, vec_norm_x, 
-				vec_norm_y, vec_norm_z, vec_north_x, 
-				vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
+		ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
+			hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
+			scene, num_rays, hori_buffer, vec_norm_x, 
+			vec_norm_y, vec_norm_z, vec_north_x, 
+			vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
+	
+		//std::cout << endl;
+		svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
+							norm_x, norm_y, norm_z);
 		
-			//std::cout << endl;
-			svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
-								norm_x, norm_y, norm_z);
-			
-			std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl; 
-		}
+		std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl; 
 	}  
 
 	/*std::cout << "Horizon buffer: " << endl;
