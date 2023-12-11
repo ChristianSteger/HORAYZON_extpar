@@ -426,7 +426,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   		hori_buffer[azim_num * num_cell] = final_ang;
 	} else {
 		hori_buffer[azim_num * num_cell] = 0.0;	
-	}  
+	}   
 	//hori_not_averaged[0] = final_ang;
 	//std::cout << "Horizon first azimuth: " << rad2deg(final_ang) << endl;
 	//std::cout << "Horizon not averaged:" << "[0: " << rad2deg(hori_not_averaged[0]) << ",";
@@ -436,7 +436,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	// azimuth direction)
 	// ------------------------------------------------------------------------
 
-	// for (size_t k = 1; k < refine_factor*azim_num; k++){ //sampling case
+	//for (size_t k = 1; k < refine_factor*azim_num; k++){ //sampling case
 	for (size_t k = 1; k < azim_num; k++){
 
 		// Rodrigues' rotation formula TO CHANGE THE AZIMUTH
@@ -890,20 +890,19 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		float ray_org_z = circ_z 
 			+ vec_norm_z * ray_org_elev;
 
-		if((i==0) || (i==1)){
-			ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, refine_factor,
-				hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
-				scene, num_rays, hori_buffer, vec_norm_x, 
-				vec_norm_y, vec_norm_z, vec_north_x, 
-				vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
+		ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, refine_factor,
+			hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
+			scene, num_rays, hori_buffer, vec_norm_x, 
+			vec_norm_y, vec_norm_z, vec_north_x, 
+			vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
 
-			svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
-								norm_x, norm_y, norm_z);
-		}		
+		svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
+							norm_x, norm_y, norm_z);
+		
 	}
 
 
-/*  	std::cout << "Horizon buffer: " << endl;
+  	/* std::cout << "Horizon buffer: " << endl;
 	//for(int i=0; i<((int)azim_num*num_cell); i++){
 	for(int i=0; i<(int)azim_num; i++){
 		std::cout << rad2deg(hori_buffer[i]) << ", ";
@@ -911,14 +910,14 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	std::cout<<endl<<endl;  
 	auto min_elem = std::min_element(hori_buffer.begin(), hori_buffer.end());
 	auto max_elem = std::max_element(hori_buffer.begin(), hori_buffer.end());
-	std::cout << "Min: " << rad2deg(*min_elem) << "   Max:" << rad2deg(*max_elem) << endl; */
+	std::cout << "Min: " << rad2deg(*min_elem) << "   Max:" << rad2deg(*max_elem) << endl;  */
 
 	/* std::cout << "SVF: " << endl;
 	for(int i=0; i<num_cell; i++){
 	//for(int i=0; i<1; i++){
 		std::cout << svf_buffer[i] << ", ";
 	}
-	std::cout<<endl; */    
+	std::cout<<endl; */   
 
 	auto end_ray = std::chrono::high_resolution_clock::now();
 	time_ray += (end_ray - start_ray);
