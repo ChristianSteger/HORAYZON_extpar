@@ -339,7 +339,7 @@ bool castRay_intersect1(RTCScene scene, float ox, float oy, float oz, float dx,
 //-----------------------------------------------------------------------------
 
 void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
-	size_t azim_num, float hori_acc, float dist_search,
+	size_t azim_num, int refine_factor, float hori_acc, float dist_search,
 	float elev_ang_low_lim, float elev_ang_up_lim,
 	RTCScene scene, size_t &num_rays, vector<float>& hori_buffer,
 	float norm_x, float norm_y, float norm_z,
@@ -348,8 +348,10 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 
 	// ------------------------------------------------------------------------
   	// First azimuth direction (binary search - faster)
-  	// ------------------------------------------------------------------------
-
+  	// ------------------------------------------------------------------------  
+	
+	//vector of horizon values before refining
+	vector <float> hori_not_averaged((int)azim_num*refine_factor);
 	float param;
   	float lim_up = elev_ang_up_lim;
   	float lim_low = elev_ang_low_lim;
@@ -366,9 +368,9 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	float counterclock_prod_x, counterclock_prod_y, counterclock_prod_z;
 	// cross product to then have the normal axis 
 	// that allows a counter-clockwise rotation
-	counterclock_prod_x = north_y * norm_z - north_z * norm_y;
+ 	counterclock_prod_x = north_y * norm_z - north_z * norm_y;
 	counterclock_prod_y = north_z * norm_x - north_x * norm_z;
-	counterclock_prod_z = north_x * norm_y - north_y * norm_x;
+	counterclock_prod_z = north_x * norm_y - north_y * norm_x;    
 
 	float new_dir_x, new_dir_y, new_dir_z;
 	float dir_x, dir_y, dir_z;
@@ -384,7 +386,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   			ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   			dist_search);
   		num_rays += 1;
-  		
+
   		if (hit) {
 			hit_num++;
   			lim_low = final_ang;
@@ -416,43 +418,37 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			(counterclock_prod_x * dir_y - counterclock_prod_y * dir_x) * elev_sin + 
 			counterclock_prod_z * param;
 		
-		final_ang += elev_ang;
-/* 		if ((hit_num==1) || (hit_num == 2) || (hit_num == 3) || (hit_num == 4) || (hit_num == 5) || (hit_num == 6)){
-			std::cout << "lim_up = " << rad2deg(lim_up) << endl;
-			std::cout << "lim_low = " << rad2deg(lim_low) << endl;
-			std::cout << "elev_ang = " << rad2deg(elev_ang) << endl; 	
-			std::cout << "final_ang = " << rad2deg(final_ang) << endl<<endl; 			
-		} */		 	
+		final_ang += elev_ang;	 	
   	}
 
 	
-   	if (rad2deg(final_ang) >= 0){
-  		hori_buffer[num_cell * azim_num] = final_ang;
+	if (rad2deg(final_ang) >= 0){
+  		hori_buffer[azim_num * num_cell] = final_ang;
 	} else {
-		hori_buffer[num_cell * azim_num] = 0.0;	
-		//final_ang = 0.0;
-	} 
-	//hori_buffer[num_cell * azim_num] = final_ang;
-	std::cout << "Horizon first azimuth: " << rad2deg(final_ang) << endl;
+		hori_buffer[azim_num * num_cell] = 0.0;	
+	}  
+	//hori_not_averaged[0] = final_ang;
+	//std::cout << "Horizon first azimuth: " << rad2deg(final_ang) << endl;
+	//std::cout << "Horizon not averaged:" << "[0: " << rad2deg(hori_not_averaged[0]) << ",";
 
 	// ------------------------------------------------------------------------
 	// Remaining azimuth directions (guess horizon from previous
 	// azimuth direction)
 	// ------------------------------------------------------------------------
-	azim_sin = - azim_sin; // to have clockwise rotation
 
+	// for (size_t k = 1; k < refine_factor*azim_num; k++){ //sampling case
 	for (size_t k = 1; k < azim_num; k++){
-		
+
 		// Rodrigues' rotation formula TO CHANGE THE AZIMUTH
 		// the norm_ vector is the rotation axis (so we'll rotate counter clockwise);  
 		// the vector that must be rotated is the previous direction
-		float param = (1 - azim_cos) * 
+ 		float param = (1 - azim_cos) * 
 			(norm_x * new_dir_x + norm_y * new_dir_y + norm_z * new_dir_z);
 
 		dir_x = new_dir_x;
 		dir_y = new_dir_y;
 		dir_z = new_dir_z;
-		//std::cout << "NEW AZIM: " << " (" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
+		
 		new_dir_x = dir_x * azim_cos + 
 			(norm_y * dir_z - norm_z * dir_y) * azim_sin + 
 			norm_x * param;
@@ -461,15 +457,26 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			norm_y * param;
 		new_dir_z = dir_z * azim_cos + 
 			(norm_x * dir_y - norm_y * dir_x) * azim_sin + 
-			norm_z * param;
-		//std::cout << "Initial direction: (" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
+			norm_z * param; 
 
 		// now focus on elevation rotation
-		// cross product to then have a counter-clockwise rotation
-		counterclock_prod_x = new_dir_y * norm_z - new_dir_z * norm_y;
-		counterclock_prod_y = new_dir_z * norm_x - new_dir_x * norm_z;
-		counterclock_prod_z = new_dir_x * norm_y - new_dir_y * norm_x;
-		
+ 		param = (1 - azim_cos) * 
+			(norm_x * counterclock_prod_x + norm_y * counterclock_prod_y + norm_z * counterclock_prod_z);
+
+		dir_x = counterclock_prod_x;
+		dir_y = counterclock_prod_y;
+		dir_z = counterclock_prod_z;
+
+		counterclock_prod_x = dir_x * azim_cos + 
+			(norm_y * dir_z - norm_z * dir_y) * azim_sin + 
+			norm_x * param;
+		counterclock_prod_y = dir_y * azim_cos + 
+			(norm_z * dir_x - norm_x * dir_z) * azim_sin + 
+			norm_y * param;
+		counterclock_prod_z = dir_z * azim_cos + 
+			(norm_x * dir_y - norm_y * dir_x) * azim_sin + 
+			norm_z * param; 		
+
 		// Move upwards to check if the horizon is higher
 		double delta = deg2rad(1); // 1 degree in [radians]
 		double sin_delta = sin(delta);
@@ -500,7 +507,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 			new_dir_z = dir_z * cos_delta + 
 				(counterclock_prod_x * dir_y - counterclock_prod_y * dir_x) * sin_delta + 
 				counterclock_prod_z * param;
-			
+
   			hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
@@ -531,8 +538,8 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 				counterclock_prod_y * param;
 			new_dir_z = dir_z * cos_delta + 
 				(counterclock_prod_x * dir_y - counterclock_prod_y * dir_x) * (- sin_delta) + 
-				counterclock_prod_z * param;
-
+				counterclock_prod_z * param; 
+				
   			hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
   				ray_org_z, new_dir_x, new_dir_y, new_dir_z,
   				dist_search);
@@ -542,16 +549,29 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 		}
 
    	 	if (rad2deg(final_ang) >= 0){
- 			hori_buffer[num_cell * azim_num + k] = final_ang;
+ 			hori_buffer[azim_num * num_cell + k] = final_ang;
 		} else { 
-			hori_buffer[num_cell * azim_num + k] = 0.0; 
-			//final_ang = 0.0;
-		}  
-		//std::cout << "FINAL DIR: (" << new_dir_x << " " << new_dir_y << " " << new_dir_z << ")" << endl;
-		std::cout << "Horizon azimuth nr." << k + 1 << ": " << rad2deg(final_ang) << endl; 
+			hori_buffer[azim_num * num_cell + k] = 0.0; 
+		}   
+		//hori_not_averaged[k] = final_ang; 
+		//std::cout << " " << k << ": " << rad2deg(hori_not_averaged[k]) << ",";
 	}
 
+	// for the refined case
+	/* for(int k = 0; k < (int)azim_num; k++){
+
+		for(int j = 0; j < refine_factor; j++){
+			hori_buffer[num_cell * azim_num + k] += hori_not_averaged[refine_factor*k + j];
+		}
+
+		hori_buffer[num_cell * azim_num + k] /= refine_factor;
+		if(rad2deg(hori_buffer[num_cell * azim_num + k]) < 0.0){
+			hori_buffer[num_cell * azim_num + k] = 0.0;
+		}
+	} */ 
+
 }
+
 
 //-----------------------------------------------------------------------------
 // Declare function pointer and assign function
@@ -661,7 +681,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	int num_vertex,
 	double* clon, double* clat,  int* vertex_of_cell,
     int num_cell,
-	float* horizon, float* skyview, int nhori, int svf_type){
+	float* horizon, float* skyview, int nhori, int refine_factor, int svf_type){
 
     // Settings and constants
     float hori_acc_deg = 1;  // horizon accuracy [degree]
@@ -678,15 +698,15 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	std::cout << "---------------------------------------------" << endl;
 
     // Adjust vertex indices (Fortran -> C; start with index 0)
-for (int i = 0; i < (num_cell * 3); i++){
-        vertex_of_cell[i] -= 1;
-    }
+	for (int i = 0; i < (num_cell * 3); i++){
+			vertex_of_cell[i] -= 1;
+		}
 
     // Circumcenters on surface of sphere (elevation = 0.0 m) (ECEF)
     vector<float> h_c(num_cell, 0.0);
     vector<geom_point> circumcenters = lonlat2ecef(clon, clat, &h_c[0],
         num_cell, rad_earth);
-
+	
     // Cell vertices (ECEF)
 	vector<geom_point> vertices = lonlat2ecef(vlon, vlat, topography_v,
 	    num_vertex, rad_earth);
@@ -714,12 +734,12 @@ for (int i = 0; i < (num_cell * 3); i++){
 	lat_orig /= num_cell;
 
 	// In-place transformation from ECEF to ENU
-    ecef2enu_point(circumcenters, lon_orig, lat_orig, rad_earth);
+	/* ecef2enu_point(circumcenters, lon_orig, lat_orig, rad_earth);
     ecef2enu_point(vertices, lon_orig, lat_orig, rad_earth);
     ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
-    ecef2enu_vector(north_direct, lon_orig, lat_orig);
+    ecef2enu_vector(north_direct, lon_orig, lat_orig);  */
 
-	    // ------------------------------------------------------------------------
+	// ------------------------------------------------------------------------
     // Building of BVH
     // ------------------------------------------------------------------------
 
@@ -761,7 +781,7 @@ for (int i = 0; i < (num_cell * 3); i++){
 
 	// horizon accuracy [degree] --> [radians]
 	float hori_acc = deg2rad(hori_acc_deg);
-	
+
 	
 	// fix angle for azimuth rotation [radians]
 	size_t azim_num = nhori;
@@ -774,18 +794,18 @@ for (int i = 0; i < (num_cell * 3); i++){
 	vector<float> svf_buffer(num_cell, 0.0);
 
 	// Select algorithm for sky view factor computation
-	cout << "Sky View Factor computation algorithm: ";
+	std::cout << "Sky View Factor computation algorithm: ";
 	if (svf_type == 1) {
-		cout << "pure geometric svf." << endl;		
+		std::cout << "pure geometric svf." << endl;		
 		function_pointer = pure_geometric_svf;
 	} else if (svf_type == 2) {
-		cout << "geometric scaled with sin(horizon)." << endl;
+		std::cout << "geometric scaled with sin(horizon)." << endl;
 		function_pointer = geometric_svf_scaled_1;
 	} else if (svf_type == 3) {
-		cout << "geometric scaled with sin(horizon)**2." << endl;
+		std::cout << "geometric scaled with sin(horizon)**2." << endl;
 		function_pointer = geometric_svf_scaled_2;
 	} else if (svf_type == 4){
-		cout << "SVF for sloped surface according to HORAYZON." << endl;
+		std::cout << "SVF for sloped surface according to HORAYZON." << endl;
 		function_pointer = sky_view_factor;		
 	}
 
@@ -869,25 +889,36 @@ for (int i = 0; i < (num_cell * 3); i++){
 			+ vec_norm_y * ray_org_elev;
 		float ray_org_z = circ_z 
 			+ vec_norm_z * ray_org_elev;
-		
-					ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, 
+
+		if((i==0) || (i==1)){
+			ray_guess_const(ray_org_x, ray_org_y, ray_org_z, azim_num, refine_factor,
 				hori_acc, dist_search, elev_ang_low_lim, elev_ang_up_lim, 
 				scene, num_rays, hori_buffer, vec_norm_x, 
 				vec_norm_y, vec_norm_z, vec_north_x, 
 				vec_north_y, vec_north_z, azim_sin, azim_cos, i);	
-		
-			//std::cout << endl;
+
 			svf_buffer[i] = function_pointer(azim_num, hori_buffer, i,
 								norm_x, norm_y, norm_z);
-			
-			std::cout << "SVF num_cell nr." << i << ": " << svf_buffer[i] << endl << endl; 
-			}  
-
-	/*std::cout << "Horizon buffer: " << endl;
-	for(int i=0; i<(azim_num*num_cell); i++){
-		std::cout << hori_buffer[i] << ", ";
+		}		
 	}
-	std::cout<<endl;*/
+
+
+/*  	std::cout << "Horizon buffer: " << endl;
+	//for(int i=0; i<((int)azim_num*num_cell); i++){
+	for(int i=0; i<(int)azim_num; i++){
+		std::cout << rad2deg(hori_buffer[i]) << ", ";
+	}
+	std::cout<<endl<<endl;  
+	auto min_elem = std::min_element(hori_buffer.begin(), hori_buffer.end());
+	auto max_elem = std::max_element(hori_buffer.begin(), hori_buffer.end());
+	std::cout << "Min: " << rad2deg(*min_elem) << "   Max:" << rad2deg(*max_elem) << endl; */
+
+	/* std::cout << "SVF: " << endl;
+	for(int i=0; i<num_cell; i++){
+	//for(int i=0; i<1; i++){
+		std::cout << svf_buffer[i] << ", ";
+	}
+	std::cout<<endl; */    
 
 	auto end_ray = std::chrono::high_resolution_clock::now();
 	time_ray += (end_ray - start_ray);

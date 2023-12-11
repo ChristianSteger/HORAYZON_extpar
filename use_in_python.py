@@ -27,6 +27,8 @@ from horizon_svf import horizon_svf_comp_py
 # Load grid information
 file_grid = "icon_grid_DOM01.nc"
 ds = xr.open_dataset(path_extpar + file_grid)
+# file_grid = "/home/catecroci/SP_files/ICON_tools/child_grid_DOM01_lon_2.0_lat_1.0.nc"
+# ds = xr.open_dataset(file_grid) 
 vlon = ds["vlon"].values  # (num_vertex; float64)
 vlat = ds["vlat"].values  # (num_vertex; float64)
 clon = ds["clon"].values  # (num_cell; float64)
@@ -37,11 +39,16 @@ ds.close()
 # Load elevation of cell vertices
 file_topo = "topography_buffer_extpar_v5.8_icon_grid_DOM01.nc"
 ds = xr.open_dataset(path_extpar + file_topo)
+# file_topo = "/home/catecroci/SP_files/output/dir_1/topography_buffer.nc"
+# ds = xr.open_dataset(file_topo) 
 nhori = ds["nhori"].size
 topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 ds.close()
 
-svf_type = 1
+hor = ds["HORIZON"].values
+hor = np.transpose(hor).ravel()
+print(hor[0:24])
+svf_type = 4 
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing (very large data set...)
@@ -56,7 +63,7 @@ clon = np.zeros(num_cell, dtype=np.float64)
 clat = np.zeros(num_cell, dtype=np.float64)
 vertex_of_cell = np.zeros((3, num_cell), dtype=np.int32)
 nhori = 24
-svf_type = 1  """
+svf_type = 1 """   
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing 
@@ -71,20 +78,19 @@ vertex_of_cell = np.array([[5, 1, 2],
                            [4, 5, 2],
                            [4, 2, 3]], dtype=np.int32).transpose()
 nhori = 24
-svf_type = 4 """
+svf_type = 4 """ 
 
 # -----------------------------------------------------------------------------
 # Compute horizon and sky view factor
 # -----------------------------------------------------------------------------
 
+vec = [0.861841, -0.504729, 0.0497841]
 
-vec = [0.0101532, -0.0149602, -0.999684]
-
-rotation_degrees = - 1
+rotation_degrees = 1
 rotation_radians = np.radians(rotation_degrees)
 #rotation_axis = np.array([0.999949, -0.00717149, 0.00714197]) # cross prod first
-rotation_axis = np.array([0.0118295, -0.00325993, 0.00016893]) # cross prod second
-# rotation_axis = np.array([-0.00694898, 0.0265842, 0.999622]) # norm
+rotation_axis = np.array([0.506103, 0.862249, -0.0196481]) # cross prod second
+#rotation_axis = np.array([-0.00694898, 0.0265842, 0.999622]) # norm
 
 rotation_vector = rotation_radians * rotation_axis
 rotation = R.from_rotvec(rotation_vector)
@@ -92,8 +98,10 @@ rotated_vec = rotation.apply(vec)
 
 print(rotated_vec)
 
+refine_factor = 5
+
 t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
                                        clon, clat, vertex_of_cell,
-                                       nhori, svf_type)
+                                       nhori, refine_factor, svf_type)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
