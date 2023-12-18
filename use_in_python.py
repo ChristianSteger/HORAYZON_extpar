@@ -24,6 +24,54 @@ sys.path.append("/Users/csteger/Downloads/Semester_Project/")
 from horizon_svf import horizon_svf_comp_py
 
 # -----------------------------------------------------------------------------
+# Functions
+# -----------------------------------------------------------------------------
+
+
+def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
+    """Transform points to 'observer perspective'. Latitude/longitude -> ECEF
+    -> ENU -> spherical coordinates.
+
+    Parameters
+    ----------
+    lon : ndarray of double
+        Array with longitude of points [rad]
+    lat : ndarray of double
+        Array with latitude of points [rad]
+    elevation : ndarray of float
+        Array with elevation of points [m]
+    lon_obs : double
+        Longitude of 'observer' [rad]
+    lat_obs : double
+        Latitude of 'observer' [rad]
+    elevation_obs : float
+        Elevation of 'observer' [m]
+
+    Returns
+    -------
+    phi : ndarray of double
+        Array with azimuth angles [deg]
+    theta : ndarray of double
+        Array with elevation angles [deg]
+    radius : ndarray of double
+        Array with radii [m]"""
+
+    txt = "+proj=pipeline +step +proj=cart +ellps=sphere +R=6371229.0" \
+          + " +step +proj=topocentric +ellps=sphere +R=6371229.0" \
+          + " +lon_0=" + str(np.rad2deg(lon_obs)) \
+          + " +lat_0=" + str(np.rad2deg(lat_obs)) \
+          + " +h_0=" + str(elevation_obs)
+    t = Transformer.from_pipeline(txt)
+    x, y, z = t.transform(np.rad2deg(lon), np.rad2deg(lat), elevation)
+    radius = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    theta = np.rad2deg(np.arccos(z / radius))  # zenith angle [90.0, 0.0 deg]
+    theta = 90.0 - theta  # elevation angle [0.0, 90 deg]
+    phi = np.rad2deg(np.arctan2(x, y))  # azimuth angle [-180.0, +180.0 deg]
+    phi[phi < 0.0] += 360.0  # [0.0, 360.0 deg]
+    return phi, theta, radius
+
+
+# -----------------------------------------------------------------------------
 # Real data (EXTPAR test domain DOM01)
 # -----------------------------------------------------------------------------
 
@@ -138,33 +186,38 @@ print("Sky view factor range [-]: %.8f" % np.min(skyview)
       + ", %.8f" % np.max(skyview))
 
 # -----------------------------------------------------------------------------
-# Plot output
+# Plot
 # -----------------------------------------------------------------------------
 
-# Specific grid cell
-ind = 10528
-azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0])
+# Compare terrain horizon for specific (triangle) cell
+ind = 40528  # 10528
+# azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0])
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])  # 7.5
 plt.figure(figsize=(15, 5))
-# plt.plot(azim_old, horizon_old[:, ind], label="old", color="black", lw=2.0)
-plt.plot(azim, horizon[:, ind], label="ray casting", color="blue", lw=2.0)
+# ---------------------------- Cell centres -----------------------------------
+dist_search = 40_000  # search distance for horizon [m]
+phi, theta, radius = observer_perspective(clon, clat, hsurf,
+                                          clon[ind], clat[ind], hsurf[ind])
+mask_d = (radius <= dist_search)
+plt.scatter(phi[mask_d], theta[mask_d], color="sienna", s=20, alpha=0.5)
+mask_c = mask_d & (theta > 3.0)
+# ---------------------------- Cell vertices ----------------------------------
+phi, theta, radius = observer_perspective(vlon, vlat, topography_v,
+                                          clon[ind], clat[ind], hsurf[ind])
+plt.scatter(phi, theta, color="black", s=20)
+for i in np.where(mask_c)[0]:
+    iv0, iv1, iv2 = vertex_of_cell[:, i]
+    phi_line = [phi[iv0], phi[iv1], phi[iv2], phi[iv0]]
+    theta_line = [theta[iv0], theta[iv1], theta[iv2], theta[iv0]]
+    for j in range(3):
+        if np.abs(np.diff(phi_line[j:(j + 2)])) < 180.0:
+            plt.plot(phi_line[j:(j + 2)], theta_line[j:(j + 2)],
+                     color="grey", lw=0.5)
 # -----------------------------------------------------------------------------
-txt = "+proj=pipeline +step +proj=cart +ellps=sphere +R=6371229.0" \
-      + " +step +proj=topocentric +ellps=sphere +R=6371229.0" \
-      + " +lon_0=" + str(np.rad2deg(clon[ind])) \
-      + " +lat_0=" + str(np.rad2deg(clat[ind])) + " +h_0=" + str(hsurf[ind])
-t = Transformer.from_pipeline(txt)
-# print(t.transform(np.rad2deg(clon[ind]), np.rad2deg(clat[ind]), hsurf[ind]))
-# x, y, z = t.transform(np.rad2deg(clon), np.rad2deg(clat), hsurf)
-x, y, z = t.transform(np.rad2deg(vlon), np.rad2deg(vlat), topography_v)
-r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
-theta = np.rad2deg(np.arccos(z / r))  # zenith angle
-phi = np.rad2deg(np.arctan2(x, y))  # azimuth angle
-phi[phi < 0.0] += 360.0
-plt.scatter(phi, 90.0 - theta, color="grey", s=30)
-# -----------------------------------------------------------------------------
+# plt.plot(azim_old, horizon_old[:, ind], label="old", color="red", lw=2.5)
+plt.plot(azim, horizon[:, ind], label="Ray tracing", color="royalblue", lw=2.5)
 plt.axis([0.0, 360.0, 0.0, 50.0])
-plt.legend()
+plt.legend(fontsize=12, frameon=False)
 plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
 
@@ -197,11 +250,13 @@ gl = ax.gridlines(crs=ccrs.PlateCarree(), linewidth=1, color="black",
 gl.top_labels = False
 gl.right_labels = False
 plt.colorbar()
-for i in range(5):
-    pts = plt.ginput(1)
-    ind = np.argmin(np.sqrt((pts[0][0] - np.rad2deg(clon)) ** 2
-                            + (pts[0][1] - np.rad2deg(clat)) ** 2))
-    print(ind)
+# ----- click on specific cell in opened plot window to get index of cell -----
+# for i in range(5):
+#     pts = plt.ginput(1)
+#     ind = np.argmin(np.sqrt((pts[0][0] - np.rad2deg(clon)) ** 2
+#                             + (pts[0][1] - np.rad2deg(clat)) ** 2))
+#     print(ind)
+# -----------------------------------------------------------------------------
 
 # Map plot of topography
 cmap = plt.get_cmap("terrain")
@@ -227,4 +282,3 @@ gl.top_labels = False
 gl.right_labels = False
 plt.colorbar()
 plt.title("Elevation [m a.s.l]")
-
