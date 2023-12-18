@@ -4,10 +4,11 @@ import numpy as np
 cdef extern from "horizon_svf_comp.h":
     void horizon_svf_comp(double* vlon, double* vlat, float* topography_v, 
                           int vertex, 
-                          double* clon, double* clat, 
-                          np.npy_int32* vertex_of_cell,  
+                          double* clon, double* clat,
+                          np.npy_int32* vertex_of_cell,
                           int cell,
-                          float* horizon, float* skyview, int nhori, int refine_factor,
+                          float* horizon, float* skyview, int nhori,
+                          int refine_factor,
                           int svf_type)
 
 # Interface for Python function
@@ -35,17 +36,18 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     clat : ndarray of double
         Array with latitude of cell circumcenters (cell) [radian]
     vertex_of_cell : ndarray of int
-        Array with indices of cell vertices (3, cell)
+        Array with indices of cell vertices. Indices start with 1 according to
+        Fortran (3, cell)
     nhori : int
         Number of terrain horizon sampling directions
     refine_factor : int
-        Refinement factor that subdivide nhori for more robust results
+        Refinement factor that subdivides 'nhori' for more robust results
     svf_type : int
         Method for computing the Sky View Factor (SVF)
-            1: Visible sky fraction; pure geometric skyview-factor
-            2: SVF for horizontal surface; geometric scaled with sin(horizon)
-            3: ?; geometric scaled with sin(horizon)**2
-            4: SVF for sloped surface according to HORAYZON
+            0: Visible sky fraction; pure geometric skyview-factor
+            1: SVF for horizontal surface; geometric scaled with sin(horizon)
+            2: ?; geometric scaled with sin(horizon)**2
+            3: SVF for sloped surface according to HORAYZON
 
     Returns
     -------
@@ -58,16 +60,20 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     if (vlon.size != vlat.size) or (vlat.size != topography_v.size):
         raise ValueError("Inconsistent lengths of input arrays 'vlon',"
                          "'vlat' and 'topography_v'")
-    if ((clon.size != clat.size) or (clat.size != vertex_of_cell.shape[1])):
+    if (clon.size != clat.size) or (clat.size != vertex_of_cell.shape[1]):
         raise ValueError("Inconsistent lengths of input arrays 'clon',"
                          "'clat', and 'vertex_of_cell'")
     if vertex_of_cell.shape[0] != 3:
         raise ValueError("First dimension of 'vertex_of_cell' must have "
                             + "length 3")
     if (nhori < 4) or (nhori > 3_600):
-        raise ValueError("'nhori' must be in the range [>4, <3_600]")
-    if (vertex_of_cell.min() < 0) or (vertex_of_cell.max() > vlon.size):
+        raise ValueError("'nhori' must be in the range [4, 3_600]")
+    if (vertex_of_cell.min() < 1) or (vertex_of_cell.max() > vlon.size):
         raise ValueError("Indices of 'vertex_of_cell' out of range")
+    if (refine_factor < 1) or (refine_factor > 100):
+        raise ValueError("'refine_factor' must be in the range [1, 100]")
+    if (svf_type < 0) or (svf_type > 3):
+        raise ValueError("'svf_type' must be in the range [0, 3]")
 
     # Allocate array for output
     cdef np.ndarray[np.float32_t, ndim = 2, mode = "c"] \
