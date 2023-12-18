@@ -358,20 +358,16 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	// Initial elevation angle
   	double elev_ang = (lim_low + lim_up) / 2.0;
   	double ang_rot = 0.0;
-//   	cout << "##################### New cell #########################" << endl;
-//   	cout << "Initial elevation angle: " << rad2deg(elev_ang) << endl;
 
     // Rotation axis (-> unit vector because cross product of two perpendicular
     // unit vectors)
     geom_vector rot_axis = cross_product(north_direction, sphere_normal);
-//     cout << "rotation axis: "<< rot_axis.x << ", " << rot_axis.y << ", " << rot_axis.z << endl;
 
 	// Initial ray direction
 	geom_vector ray_dir;
 	ray_dir.x = north_direction.x;
 	ray_dir.y = north_direction.y;
 	ray_dir.z = north_direction.z;
-// 	cout << "Initial ray direction: "<< ray_dir.x << ", " << ray_dir.y << ", " << ray_dir.z << endl;
 
     // Binary search
     bool hit;
@@ -390,9 +386,6 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   		}
   		ang_rot = ((lim_low + lim_up) / 2.0) - elev_ang;
   		elev_ang = (lim_low + lim_up) / 2.0;
-//   		cout << "Rotation angle " << rad2deg(ang_rot) << endl;
-//   		cout << "Binary search sector limits: " << rad2deg(lim_low) << ", " << rad2deg(lim_up) << endl;
-//   		cout << "New elevation angle: " << rad2deg(elev_ang) << endl;
 
         // Change elevation angle of ray direction
 		ray_dir = vector_rotation(ray_dir, rot_axis, sin(ang_rot),
@@ -401,15 +394,6 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   	}
 
   	horizon_cell[0] = elev_ang;
-//   	cout << "Terrain horizon: " << rad2deg(horizon_cell[0]) << endl;
-  	
-  	// Temporary -> check that angle between 'ray_dir? and 'north_dir' is really identical to 'elev_ang'
-// 	geom_vector north;
-// 	north.x = north_direction.x;
-// 	north.y = north_direction.y;
-// 	north.z = north_direction.z;
-//   	double ang = acos(dot_product(north, ray_dir));
-//   	cout << "Angle between vectors: " << rad2deg(ang) << endl;
 
 	// ------------------------------------------------------------------------
 	// Remaining azimuth directions -> guess horizon from previous azimuth 
@@ -420,44 +404,32 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_1ha,
 	    elev_cos_1ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
     elev_ang -=hori_acc;
-//     cout << "'elev_ang' before loop: " << rad2deg(elev_ang) << endl;
-//     ang = acos(dot_product(north, ray_dir));
-//   	cout << "Angle between vectors before loop: " << rad2deg(ang) << endl;
 
 	for (int i = 1; i < horizon_cell_len; i++){
-	
-// 	  	cout << "############# New azimuth sector (" << i << ") ###############" << endl;
-//	  	int num = 0;
 
 	    // Azimuthal rotation of ray direction (clockwise; first to east)
-// 	    cout << "ray direction: "<< ray_dir.x << ", " << ray_dir.y << ", " << ray_dir.z << endl;
 	    ray_dir = vector_rotation(ray_dir, sphere_normal, -azim_sin,
 	        azim_cos);  // sin(-x) == -sin(x), cos(x) == cos(-x)
-// 	    cout << "ray direction (after azimuthal rotation): "<< ray_dir.x << ", " << ray_dir.y << ", " << ray_dir.z << endl;
 
 	    // Rotation axis (-> not a unit vector because vectors are not
 	    // necessarily perpendicular)
 		rot_axis = cross_product(ray_dir, sphere_normal);
 		unit_vector(rot_axis);
-// 		cout << "Rotation axis: "<< rot_axis.x << ", " << rot_axis.y << ", " << rot_axis.z << endl;
 
 		// Find horizon with discrete ray sampling
 		hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
 		    ray_org_z, (float)ray_dir.x, (float)ray_dir.y, (float)ray_dir.z,
 		    dist_search);
 		num_rays += 1;
-// 		num += 1;
         if (hit) { // terrain hit -> increase elevation angle
 		    while (hit) {
 		        ray_dir = vector_rotation(ray_dir, rot_axis, elev_sin_2ha,
 		            elev_cos_2ha);
 		        elev_ang += (2.0 * hori_acc);
-// 		        cout << "Increase elevation angle to " << rad2deg(elev_ang) << endl;
 		        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
 		        ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
 		        (float)ray_dir.z, dist_search);
 		        num_rays += 1;
-// 		        num += 1;
 		    }
 		    horizon_cell[i] = elev_ang - hori_acc;
 		} else { // terrain not hit -> decrease elevation angle
@@ -465,29 +437,14 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 		        ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_2ha,
 		            elev_cos_2ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
 		        elev_ang -= (2.0 * hori_acc);
-// 		        cout << "Decrease elevation angle to " << rad2deg(elev_ang) << endl;
 		        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
 		        ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
 		        (float)ray_dir.z, dist_search);
 		        num_rays += 1;
-// 		        num += 1;
 		    }
 		    horizon_cell[i] = elev_ang + hori_acc;
 		}
-// 		cout << "Terrain horizon: " << rad2deg(horizon_cell[i]) << endl;
-// 		cout << "Number of rays: " << num << endl;
 	}
-
-    // Move 'ray_dir' back to 'initial state' to check error from vector
-    // rotation
-//     ray_dir = vector_rotation(ray_dir, sphere_normal, -azim_sin,
-//         azim_cos);  // sin(-x) == -sin(x), cos(x) == cos(-x)
-//     rot_axis = cross_product(ray_dir, sphere_normal);
-// 	unit_vector(rot_axis);
-//     ray_dir = vector_rotation(ray_dir, rot_axis, sin(-elev_ang), cos(-elev_ang));
-//     cout << setprecision(15) << fixed;
-//     cout << "Final 'ray_dir': "<< ray_dir.x << ", " << ray_dir.y << ", " << ray_dir.z << endl;
-// 	cout << "north: "<< north.x << ", " << north.y << ", " << north.z << endl;
 
 }
 
@@ -619,9 +576,9 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	int svf_type){
 
     // Settings and constants
-    double hori_acc = deg2rad(0.25);  // horizon accuracy [deg] before: 1.0
-    double ray_org_elev = 0.1;  // fix elevation offset [m]; before: 0.1, 0.5
-    float dist_search = 5000000.0;  // horizon search distance [m] 50000.0
+    double hori_acc = deg2rad(0.25);  // horizon accuracy [deg] (1.0)
+    double ray_org_elev = 0.1;  // fix elevation offset [m] (0.1, 0.5)
+    float dist_search = 40000;  // horizon search distance [m] (50000.0)
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
 
     // ------------------------------------------------------------------------
@@ -705,16 +662,16 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	// Select algorithm for sky view factor computation
 	std::cout << "Sky View Factor computation algorithm: ";
 	if (svf_type == 0) {
-		std::cout << "pure geometric svf." << endl;
+		std::cout << "pure geometric svf" << endl;
 		function_pointer = pure_geometric_svf;
 	} else if (svf_type == 1) {
-		std::cout << "geometric scaled with sin(horizon)." << endl;
+		std::cout << "geometric scaled with sin(horizon)" << endl;
 		function_pointer = geometric_svf_scaled_1;
 	} else if (svf_type == 2) {
-		std::cout << "geometric scaled with sin(horizon)**2." << endl;
+		std::cout << "geometric scaled with sin(horizon)**2" << endl;
 		function_pointer = geometric_svf_scaled_2;
 	} else if (svf_type == 3){
-		std::cout << "SVF for sloped surface according to HORAYZON." << endl;
+		std::cout << "SVF for sloped surface according to HORAYZON" << endl;
 		function_pointer = sky_view_factor;
 	}
 
