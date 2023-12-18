@@ -26,15 +26,15 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     Parameters
     ----------
     vlon : ndarray of double
-        Array with longitude of cell vertices (vertex) [radian]
+        Array with longitude of cell vertices (vertex) [rad]
     vlat : ndarray of double
-        Array with latitude of cell vertices (vertex) [radian]
+        Array with latitude of cell vertices (vertex) [rad]
     topography_v : ndarray of float
-        Array with elevation of cell vertices (vertex) [metre]
+        Array with elevation of cell vertices (vertex) [m]
     clon : ndarray of double
-        Array with longitude of cell circumcenters (cell) [radian]       
+        Array with longitude of cell circumcenters (cell) [rad]
     clat : ndarray of double
-        Array with latitude of cell circumcenters (cell) [radian]
+        Array with latitude of cell circumcenters (cell) [rad]
     vertex_of_cell : ndarray of int
         Array with indices of cell vertices. Indices start with 1 according to
         Fortran (3, cell)
@@ -52,7 +52,7 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     Returns
     -------
     horizon : ndarray of float
-        Array (two-dimensional) with terrain horizon [degree]
+        Array (two-dimensional) with terrain horizon [deg]
     skyview : ndarray of float
         Array (one-dimensional) with sky view factor [-]"""
 
