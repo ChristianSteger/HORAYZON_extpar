@@ -16,7 +16,7 @@ mpl.style.use("classic")
 
 # Path to folders
 root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
-path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/"\
+path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
               + "ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
@@ -137,6 +137,28 @@ refine_factor = 1
 svf_type = 3
 
 # -----------------------------------------------------------------------------
+# Very large and coarse grid -> check transformation of triangle surface
+# normals from global to local ENU
+# -----------------------------------------------------------------------------
+
+# # Important note:
+# # -> 'double ray_org_elev = 0.5' required -> otherwise, infinite loop occurs
+#
+# file_grid = "child_grid_very_large_coarse.nc"
+# ds = xr.open_dataset(path_extpar + file_grid)
+# vlon = ds["vlon"].values  # (num_vertex; float64)
+# vlat = ds["vlat"].values  # (num_vertex; float64)
+# clon = ds["clon"].values  # (num_cell; float64)
+# clat = ds["clat"].values  # (num_cell; float64)
+# vertex_of_cell = ds["vertex_of_cell"].values  # (3, num_cell; int32)
+# ds.close()
+# topography_v = np.zeros(vlon.size, dtype=np.float32)
+#
+# nhori = 24
+# refine_factor = 1
+# svf_type = 3
+
+# -----------------------------------------------------------------------------
 # Artificial Data for testing (small; only 3 cells)
 # -----------------------------------------------------------------------------
 
@@ -149,8 +171,8 @@ svf_type = 3
 #                            [4, 5, 2],
 #                            [4, 2, 3]], dtype=np.int32).transpose()
 # nhori = 24
-# svf_type = 0
 # refine_factor = 1
+# svf_type = 0
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing (-> 'dummy data' -> only use for testing the
@@ -167,6 +189,7 @@ svf_type = 3
 # vertex_of_cell = np.zeros((3, num_cell), dtype=np.int32)
 # mask = np.ones_like(clon, dtype=np.uint8)
 # nhori = 24
+# refine_factor = 1
 # svf_type = 0
 
 # -----------------------------------------------------------------------------
@@ -222,10 +245,10 @@ plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
 
 # Colormap
-# values = skyview
-# cmap = plt.get_cmap("YlGnBu_r")
-values = horizon[180, :]  # 0, 12
-cmap = plt.get_cmap("afmhot_r")
+values = skyview
+cmap = plt.get_cmap("YlGnBu_r")
+# values = horizon[180, :]  # 0, 12
+# cmap = plt.get_cmap("afmhot_r")
 levels = MaxNLocator(nbins=20, steps=[1, 2, 5, 10], symmetric=False) \
          .tick_values(np.percentile(values, 5), np.percentile(values, 95))
 norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")

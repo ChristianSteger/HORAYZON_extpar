@@ -87,6 +87,16 @@ inline geom_vector vector_rotation(geom_vector v, geom_vector k,
     return v_rot;
 }
 
+// Multiply matrix and vector
+inline geom_vector vector_matrix_multiplication(geom_vector v_in,
+    double matrix[3][3]) {
+    geom_vector v_out;
+    v_out.x = matrix[0][0] * v_in.x + matrix[0][1] * v_in.y + matrix[0][2] * v_in.z;
+    v_out.y = matrix[1][0] * v_in.x + matrix[1][1] * v_in.y + matrix[1][2] * v_in.z;
+    v_out.z = matrix[2][0] * v_in.x + matrix[2][1] * v_in.y + matrix[2][2] * v_in.z;
+    return v_out;
+}
+
 //#############################################################################
 // Coordinate transformation and north vector
 //#############################################################################
@@ -577,7 +587,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 
     // Settings and constants
     double hori_acc = deg2rad(0.25);  // horizon accuracy [deg] (1.0)
-    double ray_org_elev = 0.1;  // fix elevation offset [m] (0.1, 0.5)
+    double ray_org_elev = 0.1;  // fix elevation offset [m] (0.1, 0.2, 0.5)
     float dist_search = 40000;  // horizon search distance [m] (50000.0)
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
 
@@ -685,7 +695,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	tbb::blocked_range<size_t>(0, num_cell), 0.0,
 	[&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
-	//for(size_t i = 0; i < num_cell; i++){ // serial
+	//for(size_t i = 0; i < (size_t)num_cell; i++){ // serial
 	for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
 		// Indices of the triangle's vertices
@@ -764,9 +774,22 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		}
 		// attention: consider shift in azimuth: first sector must be centred around 0.0 degree!!!  ------- to do.....
 
+        // Transform triangle surface normal from global to local ENU
+        // coordinates
+        geom_vector east_direction = cross_product(north_directions[i],
+            sphere_normals[i]);
+        double rotation_matrix[3][3] = {
+            {east_direction.x, east_direction.y, east_direction.z},
+            {north_directions[i].x, north_directions[i].y,
+            north_directions[i].z},
+            {sphere_normals[i].x, sphere_normals[i].y, sphere_normals[i].z}
+            };
+        geom_vector triangle_normal_local = vector_matrix_multiplication(
+            triangle_normal, rotation_matrix);
+
         // Compute sky view factor and save in 'skyview' buffer
 		skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
-		    triangle_normal);
+		    triangle_normal_local);
 
 		delete[] horizon_cell;
 
