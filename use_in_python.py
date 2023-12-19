@@ -135,6 +135,8 @@ ds.close()
 nhori = 240
 refine_factor = 1
 svf_type = 3
+mask_cell = np.ones(clon.size, dtype=np.uint8)
+# mask_cell[:258502] = 0  # consider half of the cells
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing (small; only 3 cells)
@@ -176,7 +178,8 @@ svf_type = 3
 t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
                                        clon, clat, vertex_of_cell,
-                                       nhori, refine_factor, svf_type)
+                                       nhori, refine_factor, svf_type,
+                                       mask_cell)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
 
 # Check range of computes values
@@ -227,7 +230,8 @@ plt.ylabel("Elevation angle [deg]")
 values = horizon[180, :]  # 0, 12
 cmap = plt.get_cmap("afmhot_r")
 levels = MaxNLocator(nbins=20, steps=[1, 2, 5, 10], symmetric=False) \
-         .tick_values(np.percentile(values, 5), np.percentile(values, 95))
+         .tick_values(np.nanpercentile(values, 5),
+                      np.nanpercentile(values, 95))
 norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")
 
 # Compare with 'old' values

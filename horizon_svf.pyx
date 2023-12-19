@@ -9,7 +9,7 @@ cdef extern from "horizon_svf_comp.h":
                           int cell,
                           float* horizon, float* skyview, int nhori,
                           int refine_factor,
-                          int svf_type)
+                          int svf_type, np.npy_uint8* mask_cell)
 
 # Interface for Python function
 def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
@@ -20,7 +20,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
                         np.ndarray[np.int32_t, ndim = 2] vertex_of_cell,
                         int nhori,
                         int refine_factor,
-                        int svf_type):
+                        int svf_type,
+                        np.ndarray[np.uint8_t, ndim = 1] mask_cell=None):
     """Compute the terrain horizon and sky view factor.
 
     Parameters
@@ -48,6 +49,9 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
             1: SVF for horizontal surface; geometric scaled with sin(horizon)
             2: ?; geometric scaled with sin(horizon)**2
             3: SVF for sloped surface according to HORAYZON
+    mask_cell : ndarray of uint8
+        Array with mask determining which cells are considered for horizon and
+        sky view factor computation (0: not considered, 1: considered) (cell)
 
     Returns
     -------
@@ -74,12 +78,16 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
         raise ValueError("'refine_factor' must be in the range [1, 100]")
     if (svf_type < 0) or (svf_type > 3):
         raise ValueError("'svf_type' must be in the range [0, 3]")
+    if (mask_cell is not None) and (mask_cell.size != clon.size):
+        raise ValueError("'mask_cell' must have same lengths as 'clon'")
 
     # Allocate array for output
     cdef np.ndarray[np.float32_t, ndim = 2, mode = "c"] \
         horizon = np.empty((nhori, clon.size), dtype=np.float32)
     cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] \
         skyview = np.empty(clon.size, dtype=np.float32)
+    if mask_cell is None:
+        mask_cell = np.ones(clon.size, dtype=np.uint8)
     
     # Ensure that passed arrays are contiguous in memory
     vertex_of_cell = np.ascontiguousarray(vertex_of_cell)
@@ -89,7 +97,7 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
                      &clon[0], &clat[0], &vertex_of_cell[0, 0],
                      clon.size, 
                      &horizon[0, 0], &skyview[0], nhori, refine_factor, 
-                     svf_type)
+                     svf_type, &mask_cell[0])
 
     return horizon, skyview
 

@@ -573,12 +573,14 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	double* clon, double* clat,  int* vertex_of_cell,
     int num_cell,
 	float* horizon, float* skyview, int azim_num, int refine_factor,
-	int svf_type){
+	int svf_type, uint8_t* mask_cell){
 
     // Settings and constants
     double hori_acc = deg2rad(0.25);  // horizon accuracy [deg] (1.0)
     double ray_org_elev = 0.1;  // fix elevation offset [m] (0.1, 0.5)
     float dist_search = 40000;  // horizon search distance [m] (50000.0)
+    float horizon_fill_value = NAN;  // NAN or 0.0
+    float skyview_fill_value = NAN;  // NAN or 1.0
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
 
     // ------------------------------------------------------------------------
@@ -593,6 +595,16 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	for (int i = 0; i < (num_cell * 3); i++){
 			vertex_of_cell[i] -= 1;
 		}
+
+	// Compute number of considered cells
+	int num_cell_cons = 0;
+	for(int i = 0; i < num_cell; i++) {
+	    if (mask_cell[i] == 1) {
+	        num_cell_cons += 1;
+	    }
+	}
+	std::cout << "Number of considered cells: " << num_cell_cons
+	    << " of " << num_cell << endl;
 
 	std::cout << "Convert spherical to ECEF coordinates" << endl;
 
@@ -688,6 +700,8 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	//for(size_t i = 0; i < num_cell; i++){ // serial
 	for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
+	    if (mask_cell[i] == 1) {
+
 		// Indices of the triangle's vertices
 		int idx1 = vertex_of_cell[i];
 		int idx2 = vertex_of_cell[i + num_cell];
@@ -770,6 +784,13 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 
 		delete[] horizon_cell;
 
+		} else {
+		    for(int j = 0; j < azim_num; j++){
+		        horizon[(j * num_cell) + i] = horizon_fill_value;
+		    }
+		    skyview[i] = skyview_fill_value;
+		}
+
 	}
 
 	return num_rays;  // parallel
@@ -781,8 +802,8 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 
     // Print number of rays needed for location and azimuth direction
   	cout << "Number of rays shot: " << num_rays << endl;
-  	double ratio = (double)num_rays / (double)(num_cell * azim_num);
-  	printf("Average number of rays per cell and azimuth sector: %.2f \n",
+    double ratio = (double)num_rays / (double)(num_cell_cons * azim_num);
+    printf("Average number of rays per cell and azimuth sector: %.2f \n",
   	    ratio);
 
 }
