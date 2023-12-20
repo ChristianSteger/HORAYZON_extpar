@@ -15,8 +15,7 @@ from pyproj import Transformer
 mpl.style.use("classic")
 
 # Path to folders
-root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
-path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
+path_extpar = "/home/catecroci/SP_files/"\
               + "ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
@@ -130,10 +129,10 @@ hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
 ds.close()
 
 # Further settings
-# nhori = 24
-# refine_factor = 10
-nhori = 240
-refine_factor = 1
+nhori = 24
+refine_factor = 10
+# nhori = 240
+# refine_factor = 1
 svf_type = 3
 
 # -----------------------------------------------------------------------------
