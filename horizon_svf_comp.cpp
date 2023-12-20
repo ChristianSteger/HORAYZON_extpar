@@ -23,11 +23,11 @@ using namespace std;
 //#############################################################################
 
 struct geom_point{
-	double x, y, z;
+    double x, y, z;
 };
 
 struct geom_vector{
-	double x, y, z;
+    double x, y, z;
 };
 
 //#############################################################################
@@ -91,9 +91,12 @@ inline geom_vector vector_rotation(geom_vector v, geom_vector k,
 inline geom_vector vector_matrix_multiplication(geom_vector v_in,
     double matrix[3][3]) {
     geom_vector v_out;
-    v_out.x = matrix[0][0] * v_in.x + matrix[0][1] * v_in.y + matrix[0][2] * v_in.z;
-    v_out.y = matrix[1][0] * v_in.x + matrix[1][1] * v_in.y + matrix[1][2] * v_in.z;
-    v_out.z = matrix[2][0] * v_in.x + matrix[2][1] * v_in.y + matrix[2][2] * v_in.z;
+    v_out.x = matrix[0][0] * v_in.x + matrix[0][1] * v_in.y
+        + matrix[0][2] * v_in.z;
+    v_out.y = matrix[1][0] * v_in.x + matrix[1][1] * v_in.y
+        + matrix[1][2] * v_in.z;
+    v_out.z = matrix[2][0] * v_in.x + matrix[2][1] * v_in.y
+        + matrix[2][2] * v_in.z;
     return v_out;
 }
 
@@ -110,36 +113,53 @@ std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
     Parameters
     ----------
     lon : array of double
-        Array (one-dimensional) with geographic longitude [rad]
+        Array with geographic longitude [rad]
     lat : array of double
-        Array (one-dimensional) with geographic latitude [rad]
+        Array with geographic latitude [rad]
     elevation : array of float
-        Array (one-dimensional) with elevation above sphere [m]
+        Array with elevation above sphere [m]
+    num_point : int
+        Number of points
+	rad_earth : double
+	    Radius of Earth [m]
 
     Returns
     -------
-    points_ecef : vector of type <geom_point>
-		vector of points (x, y, z) [m]*/
+    points : vector of type <geom_point>
+		Vector of points (x, y, z) in ECEF coordinates [m]*/
 
-	vector<geom_point> points_ecef(num_point);
-	for (int i = 0; i < num_point; i++){
-		points_ecef[i].x = (rad_earth + elevation[i]) * cos(lat[i])
-		    * cos(lon[i]);
-		points_ecef[i].y = (rad_earth + elevation[i]) * cos(lat[i])
-		    * sin(lon[i]);
-		points_ecef[i].z = (rad_earth + elevation[i]) * sin(lat[i]);
+    vector<geom_point> points(num_point);
+    for (int i = 0; i < num_point; i++){
+        points[i].x = (rad_earth + elevation[i]) * cos(lat[i]) * cos(lon[i]);
+        points[i].y = (rad_earth + elevation[i]) * cos(lat[i]) * sin(lon[i]);
+        points[i].z = (rad_earth + elevation[i]) * sin(lat[i]);
 	}
-    return points_ecef;
+    return points;
 }
 
 // ----------------------------------------------------------------------------
 
 std::vector<geom_vector> north_direction(vector<geom_point> points,
     vector<geom_vector> sphere_normals, double rad_earth){
-    
+
     /* Compute unit vectors for points in earth-centered, earth-fixed (ECEF)
     coordinates that point towards North and are perpendicular to the sphere's
-    normals.*/
+    normals.
+
+    Parameters
+    ----------
+    points : vector of type <geom_point>
+		Vector of points (x, y, z) in ECEF coordinates [m]
+    sphere_normals : vector of type <geom_vector>
+		Vector of sphere normals (x, y, z) at the point locations in ECEF
+		coordinates [m]
+	rad_earth : double
+	    Radius of Earth [m]
+
+    Returns
+    -------
+    north_directions : vector of type <geom_vector>
+		Vector with north directions (x, y, z) in ECEF coordinates [m]*/
 
     geom_vector v_p = {0.0, 0.0, rad_earth};  // north pole in ECEF coordinates
 	vector<geom_vector> north_directions(points.size());
@@ -161,11 +181,22 @@ std::vector<geom_vector> north_direction(vector<geom_point> points,
 
 // ----------------------------------------------------------------------------
 
-void ecef2enu_point(vector<geom_point>& points_ecef, double lon_orig,
+void ecef2enu_point(vector<geom_point>& points, double lon_orig,
     double lat_orig, double rad_earth){
 
-    /* In-place coordinate transformation of points from ECEF to ENU coordinate
-    system.*/
+    /* In-place coordinate transformation of points from ECEF to ENU
+    coordinate system.
+
+    Parameters
+    ----------
+    points : vector of type <geom_point>
+		Vector of points (x, y, z) in ECEF (in) coordinates [m]
+    lon_orig : double
+        Longitude of ENU coordinate system origin [rad]
+    lat_orig : double
+        Latitude of ENU coordinate system origin [rad]
+	rad_earth : double
+	    Radius of Earth [m]*/
 
     double sin_lon = sin(lon_orig);
     double cos_lon = cos(lon_orig);
@@ -177,28 +208,37 @@ void ecef2enu_point(vector<geom_point>& points_ecef, double lon_orig,
     double z_ecef_orig = rad_earth * sin(lat_orig);
 
     double x_enu, y_enu, z_enu;
-    for (size_t i = 0; i < points_ecef.size(); i++){
-        x_enu = - sin_lon * (points_ecef[i].x - x_ecef_orig)
-            + cos_lon * (points_ecef[i].y - y_ecef_orig);
-        y_enu = - sin_lat * cos_lon * (points_ecef[i].x - x_ecef_orig)
-            - sin_lat * sin_lon * (points_ecef[i].y - y_ecef_orig)
-            + cos_lat * (points_ecef[i].z - z_ecef_orig);
-        z_enu = + cos_lat * cos_lon * (points_ecef[i].x - x_ecef_orig)
-            + cos_lat * sin_lon * (points_ecef[i].y - y_ecef_orig)
-            + sin_lat * (points_ecef[i].z - z_ecef_orig);
-        points_ecef[i].x = x_enu;
-        points_ecef[i].y = y_enu;
-        points_ecef[i].z = z_enu;
+    for (size_t i = 0; i < points.size(); i++){
+        x_enu = - sin_lon * (points[i].x - x_ecef_orig)
+            + cos_lon * (points[i].y - y_ecef_orig);
+        y_enu = - sin_lat * cos_lon * (points[i].x - x_ecef_orig)
+            - sin_lat * sin_lon * (points[i].y - y_ecef_orig)
+            + cos_lat * (points[i].z - z_ecef_orig);
+        z_enu = + cos_lat * cos_lon * (points[i].x - x_ecef_orig)
+            + cos_lat * sin_lon * (points[i].y - y_ecef_orig)
+            + sin_lat * (points[i].z - z_ecef_orig);
+        points[i].x = x_enu;
+        points[i].y = y_enu;
+        points[i].z = z_enu;
     }
 }
 
 // ----------------------------------------------------------------------------
 
-void ecef2enu_vector(vector<geom_vector>& vector_ecef, double lon_orig,
+void ecef2enu_vector(vector<geom_vector>& vectors, double lon_orig,
     double lat_orig){
 
-    /*In-place coordinate transformation of vectors from ECEF to ENU coordinate
-    system.*/
+    /*In-place coordinate transformation of vectors from ECEF to ENU
+    coordinate system.
+
+    Parameters
+    ----------
+    vectors : vector of type <geom_vector>
+		Vector of vectors (x, y, z) in ECEF (in) coordinates [m]
+    lon_orig : double
+        Longitude of ENU coordinate system origin [rad]
+    lat_orig : double
+        Latitude of ENU coordinate system origin [rad]*/
 
     double sin_lon = sin(lon_orig);
     double cos_lon = cos(lon_orig);
@@ -206,18 +246,18 @@ void ecef2enu_vector(vector<geom_vector>& vector_ecef, double lon_orig,
     double cos_lat = cos(lat_orig);
 
     double x_enu, y_enu, z_enu;
-    for (size_t i = 0; i < vector_ecef.size(); i++){
-        x_enu = - sin_lon * vector_ecef[i].x
-            + cos_lon * vector_ecef[i].y;
-        y_enu = - sin_lat * cos_lon * vector_ecef[i].x
-            - sin_lat * sin_lon * vector_ecef[i].y
-            + cos_lat * vector_ecef[i].z;
-        z_enu = + cos_lat * cos_lon * vector_ecef[i].x
-            + cos_lat * sin_lon * vector_ecef[i].y
-            + sin_lat * vector_ecef[i].z;
-        vector_ecef[i].x = x_enu;
-        vector_ecef[i].y = y_enu;
-        vector_ecef[i].z = z_enu;
+    for (size_t i = 0; i < vectors.size(); i++){
+        x_enu = - sin_lon * vectors[i].x
+            + cos_lon * vectors[i].y;
+        y_enu = - sin_lat * cos_lon * vectors[i].x
+            - sin_lat * sin_lon * vectors[i].y
+            + cos_lat * vectors[i].z;
+        z_enu = + cos_lat * cos_lon * vectors[i].x
+            + cos_lat * sin_lon * vectors[i].y
+            + sin_lat * vectors[i].z;
+        vectors[i].x = x_enu;
+        vectors[i].y = y_enu;
+        vectors[i].z = z_enu;
     }
 }
 
@@ -227,22 +267,22 @@ void ecef2enu_vector(vector<geom_vector>& vector_ecef, double lon_orig,
 
 // Namespace
 #if defined(RTC_NAMESPACE_USE)
-	RTC_NAMESPACE_USE
+    RTC_NAMESPACE_USE
 #endif
 
 // Error function
 void errorFunction(void* userPtr, enum RTCError error, const char* str) {
-	printf("error %d: %s\n", error, str);
+    printf("error %d: %s\n", error, str);
 }
 
 // Initialisation of device and registration of error handler
 RTCDevice initializeDevice() {
-	RTCDevice device = rtcNewDevice(NULL);
-  	if (!device) {
-    	printf("error %d: cannot create device\n", rtcGetDeviceError(NULL));
+    RTCDevice device = rtcNewDevice(NULL);
+    if (!device) {
+        printf("error %d: cannot create device\n", rtcGetDeviceError(NULL));
     }
-  	rtcSetDeviceErrorFunction(device, errorFunction, NULL);
-  	return device;
+    rtcSetDeviceErrorFunction(device, errorFunction, NULL);
+    return device;
 }
 
 //#############################################################################
@@ -261,46 +301,46 @@ struct Triangle{int v0, v1, v2;};
 RTCScene initializeScene(RTCDevice device, int* vertex_of_cell, int num_cell,
     vector<geom_point>& vertices){
 
-	RTCScene scene = rtcNewScene(device);
-  	rtcSetSceneFlags(scene, RTC_SCENE_FLAG_ROBUST);
-  	RTCGeometry geom = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);
+    RTCScene scene = rtcNewScene(device);
+    rtcSetSceneFlags(scene, RTC_SCENE_FLAG_ROBUST);
+    RTCGeometry geom = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);
 
-  	// Vertices (-> convert to float)
-  	 Vertex* vertices_embree = (Vertex*) rtcSetNewGeometryBuffer(geom,
-  	    RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, sizeof(Vertex),
-  	    vertices.size());
+    // Vertices (-> convert to float)
+    Vertex* vertices_embree = (Vertex*) rtcSetNewGeometryBuffer(geom,
+        RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, sizeof(Vertex),
+        vertices.size());
     for (size_t i = 0; i < vertices.size(); i++) {
-  	    vertices_embree[i].x = (float)vertices[i].x;
-  	    vertices_embree[i].y = (float)vertices[i].y;
-  	    vertices_embree[i].z = (float)vertices[i].z;
+        vertices_embree[i].x = (float)vertices[i].x;
+        vertices_embree[i].y = (float)vertices[i].y;
+        vertices_embree[i].z = (float)vertices[i].z;
     }
 
-	// Cell (triangle) indices to vertices
+    // Cell (triangle) indices to vertices
     Triangle* triangles_embree = (Triangle*) rtcSetNewGeometryBuffer(geom,
         RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, sizeof(Triangle),
         num_cell);
-	for (int i = 0; i < num_cell; i++) {
-	    triangles_embree[i].v0 = vertex_of_cell[(0 * num_cell) + i];
-	    triangles_embree[i].v1 = vertex_of_cell[(1 * num_cell) + i];
-	    triangles_embree[i].v2 = vertex_of_cell[(2 * num_cell) + i];
-	}
+    for (int i = 0; i < num_cell; i++) {
+        triangles_embree[i].v0 = vertex_of_cell[(0 * num_cell) + i];
+        triangles_embree[i].v1 = vertex_of_cell[(1 * num_cell) + i];
+        triangles_embree[i].v2 = vertex_of_cell[(2 * num_cell) + i];
+    }
 
-	auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
 
-	// Commit geometry
-	rtcCommitGeometry(geom);
+    // Commit geometry
+    rtcCommitGeometry(geom);
 
-	rtcAttachGeometry(scene, geom);
-	rtcReleaseGeometry(geom);
+    rtcAttachGeometry(scene, geom);
+    rtcReleaseGeometry(geom);
 
-	// Commit scene
-	rtcCommitScene(scene);
+    // Commit scene
+    rtcCommitScene(scene);
 
-	auto end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> time = end - start;
-	std::cout << "Building BVH: " << time.count() << " s" << endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time = end - start;
+    std::cout << "Building BVH: " << time.count() << " s" << endl;
 
-	return scene;
+    return scene;
 
 }
 
@@ -309,7 +349,7 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_cell, int num_cell,
 //#############################################################################
 
 bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
-	float dy, float dz, float dist_search) {
+	float dy, float dz, float dist_search){
 
 	// Intersect context
   	struct RTCIntersectContext context;
@@ -336,7 +376,7 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
   	// Intersect ray with scene - function that checks
 	// wheter there is a hit with the scene
   	rtcOccluded1(scene, &context, &ray);
-  
+
   	return (ray.tfar < 0.0);
 }
 
@@ -355,7 +395,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	geom_vector sphere_normal, geom_vector north_direction,
 	double azim_sin, double azim_cos,
 	double elev_sin_1ha, double elev_cos_1ha,
-	double elev_sin_2ha, double elev_cos_2ha) {
+	double elev_sin_2ha, double elev_cos_2ha){
 
 	// ------------------------------------------------------------------------
   	// First azimuth direction -> binary search
@@ -369,98 +409,98 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
   	double elev_ang = (lim_low + lim_up) / 2.0;
   	double ang_rot = 0.0;
 
-    // Rotation axis (-> unit vector because cross product of two perpendicular
-    // unit vectors)
+    // Rotation axis (-> unit vector because cross product of two 
+    // perpendicular unit vectors)
     geom_vector rot_axis = cross_product(north_direction, sphere_normal);
 
-	// Initial ray direction
-	geom_vector ray_dir;
-	ray_dir.x = north_direction.x;
-	ray_dir.y = north_direction.y;
-	ray_dir.z = north_direction.z;
+    // Initial ray direction
+    geom_vector ray_dir;
+    ray_dir.x = north_direction.x;
+    ray_dir.y = north_direction.y;
+    ray_dir.z = north_direction.z;
 
-	// Shift in counterclockwise direction
-	double ang_shift = deg2rad(360.0/(2*azim_num));
-	double ang_shift_sin = sin(ang_shift);
-	double ang_shift_cos = cos(ang_shift);
-	ray_dir = vector_rotation(ray_dir, sphere_normal, ang_shift_sin, ang_shift_cos); 
+    // Rotate initial ray counterclockwise so that first azimuth sector
+    // is centred around 0.0 deg (-> pointing towards North)
+    double ang_shift = deg2rad(360.0 / (2.0 * azim_num));
+    ray_dir = vector_rotation(ray_dir, sphere_normal, sin(ang_shift),
+        cos(ang_shift));
 
     // Binary search
     bool hit;
-  	while ((lim_up - lim_low) > (2.0 * hori_acc)) {
+    while ((lim_up - lim_low) > (2.0 * hori_acc)){
 
-  		hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
-  			ray_org_z, (float)ray_dir.x, (float)ray_dir.y, (float)ray_dir.z,
-  			dist_search);
-  		num_rays += 1;
+        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
+            ray_org_z, (float)ray_dir.x, (float)ray_dir.y, (float)ray_dir.z,
+            dist_search);
+        num_rays += 1;
 
         // Determine new elevation angle for ray sampling
-  		if (hit) {
-  			lim_low = elev_ang;
-  		} else {
-  			lim_up = elev_ang;		
-  		}
-  		ang_rot = ((lim_low + lim_up) / 2.0) - elev_ang;
-  		elev_ang = (lim_low + lim_up) / 2.0;
+        if (hit) {
+            lim_low = elev_ang;
+        } else {
+            lim_up = elev_ang;
+        }
+        ang_rot = ((lim_low + lim_up) / 2.0) - elev_ang;
+        elev_ang = (lim_low + lim_up) / 2.0;
 
         // Change elevation angle of ray direction
-		ray_dir = vector_rotation(ray_dir, rot_axis, sin(ang_rot),
-		    cos(ang_rot));
+        ray_dir = vector_rotation(ray_dir, rot_axis, sin(ang_rot),
+            cos(ang_rot));
 
   	}
 
-  	horizon_cell[0] = elev_ang;
+    horizon_cell[0] = elev_ang;
 
-	// ------------------------------------------------------------------------
-	// Remaining azimuth directions -> guess horizon from previous azimuth 
-	// direction
-	// ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Remaining azimuth directions -> guess horizon from previous azimuth
+    // direction
+    // ------------------------------------------------------------------------
 
     // Lower ray direction vector by 'hori_acc'
-	ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_1ha,
-	    elev_cos_1ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
+    ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_1ha,
+        elev_cos_1ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
     elev_ang -=hori_acc;
 
-	for (int i = 1; i < horizon_cell_len; i++){
+    for (int i = 1; i < horizon_cell_len; i++){
 
-	    // Azimuthal rotation of ray direction (clockwise; first to east)
-	    ray_dir = vector_rotation(ray_dir, sphere_normal, -azim_sin,
-	        azim_cos);  // sin(-x) == -sin(x), cos(x) == cos(-x)
+        // Azimuthal rotation of ray direction (clockwise; first to east)
+        ray_dir = vector_rotation(ray_dir, sphere_normal, -azim_sin,
+            azim_cos);  // sin(-x) == -sin(x), cos(x) == cos(-x)
 
-	    // Rotation axis (-> not a unit vector because vectors are not
-	    // necessarily perpendicular)
-		rot_axis = cross_product(ray_dir, sphere_normal);
-		unit_vector(rot_axis);
+        // Rotation axis (-> not a unit vector because vectors are not
+        // necessarily perpendicular)
+        rot_axis = cross_product(ray_dir, sphere_normal);
+        unit_vector(rot_axis);
 
-		// Find horizon with discrete ray sampling
-		hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
-		    ray_org_z, (float)ray_dir.x, (float)ray_dir.y, (float)ray_dir.z,
-		    dist_search);
-		num_rays += 1;
+        // Find horizon with discrete ray sampling
+        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
+            ray_org_z, (float)ray_dir.x, (float)ray_dir.y, (float)ray_dir.z,
+            dist_search);
+        num_rays += 1;
         if (hit) { // terrain hit -> increase elevation angle
-		    while (hit) {
-		        ray_dir = vector_rotation(ray_dir, rot_axis, elev_sin_2ha,
-		            elev_cos_2ha);
-		        elev_ang += (2.0 * hori_acc);
-		        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
-		        ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
-		        (float)ray_dir.z, dist_search);
-		        num_rays += 1;
-		    }
-		    horizon_cell[i] = elev_ang - hori_acc;
-		} else { // terrain not hit -> decrease elevation angle
-		    while (!hit) {
-		        ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_2ha,
-		            elev_cos_2ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
-		        elev_ang -= (2.0 * hori_acc);
-		        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
-		        ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
-		        (float)ray_dir.z, dist_search);
-		        num_rays += 1;
-		    }
-		    horizon_cell[i] = elev_ang + hori_acc;
-		}
-	}
+            while (hit) {
+                ray_dir = vector_rotation(ray_dir, rot_axis, elev_sin_2ha,
+                    elev_cos_2ha);
+                elev_ang += (2.0 * hori_acc);
+                hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
+                ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
+                (float)ray_dir.z, dist_search);
+                num_rays += 1;
+            }
+            horizon_cell[i] = elev_ang - hori_acc;
+        } else { // terrain not hit -> decrease elevation angle
+            while (!hit) {
+                ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_2ha,
+                    elev_cos_2ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
+                elev_ang -= (2.0 * hori_acc);
+                hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
+                ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
+                (float)ray_dir.z, dist_search);
+                num_rays += 1;
+            }
+            horizon_cell[i] = elev_ang + hori_acc;
+        }
+    }
 
 }
 
@@ -534,7 +574,7 @@ double sky_view_factor(double* horizon_cell, int horizon_cell_len,
     Parameters
     ----------
     horizon_cell : array of double
-        Array (one-dimensional) with horizon values [rad]
+        Array with horizon values [rad]
     horizon_cell_len : int
         Number of azimuth directions with horizon values
     normal : geom_vector
@@ -778,7 +818,6 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		    horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
 		        / (double)refine_factor);
 		}
-		// attention: consider shift in azimuth: first sector must be centred around 0.0 degree!!!  ------- to do.....
 
         // Transform triangle surface normal from global to local ENU
         // coordinates
