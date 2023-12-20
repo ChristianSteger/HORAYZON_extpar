@@ -9,7 +9,8 @@ cdef extern from "horizon_svf_comp.h":
                           int cell,
                           float* horizon, float* skyview, int nhori,
                           int refine_factor,
-                          int svf_type)
+                          int svf_type,
+                          float* slope_angle, float* slope_aspect)
 
 # Interface for Python function
 def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
@@ -54,7 +55,11 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     horizon : ndarray of float
         Array (two-dimensional) with terrain horizon [deg]
     skyview : ndarray of float
-        Array (one-dimensional) with sky view factor [-]"""
+        Array (one-dimensional) with sky view factor [-]
+    slope_angle : ndarray of float
+        Array (one-dimensional) with slope angle [rad]
+    slope_aspect : ndarray of float
+        Array (one-dimensional) with slope aspect [rad]"""
 
     # Check consistency and validity of input arguments
     if (vlon.size != vlat.size) or (vlat.size != topography_v.size):
@@ -80,6 +85,10 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
         horizon = np.empty((nhori, clon.size), dtype=np.float32)
     cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] \
         skyview = np.empty(clon.size, dtype=np.float32)
+    cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] \
+        slope_angle = np.empty(clon.size, dtype=np.float32)
+    cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] \
+        slope_aspect = np.empty(clon.size, dtype=np.float32)
     
     # Ensure that passed arrays are contiguous in memory
     vertex_of_cell = np.ascontiguousarray(vertex_of_cell)
@@ -89,7 +98,7 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
                      &clon[0], &clat[0], &vertex_of_cell[0, 0],
                      clon.size, 
                      &horizon[0, 0], &skyview[0], nhori, refine_factor, 
-                     svf_type)
+                     svf_type, &slope_angle[0], &slope_aspect[0])
 
-    return horizon, skyview
+    return horizon, skyview, slope_angle, slope_aspect
 

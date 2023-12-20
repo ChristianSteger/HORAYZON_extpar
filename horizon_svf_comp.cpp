@@ -583,7 +583,8 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 	double* clon, double* clat,  int* vertex_of_cell,
     int num_cell,
 	float* horizon, float* skyview, int azim_num, int refine_factor,
-	int svf_type){
+	int svf_type,
+	float* slope_angle, float* slope_aspect){
 
     // Settings and constants
     double hori_acc = deg2rad(0.25);  // horizon accuracy [deg] (1.0)
@@ -790,6 +791,21 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
         // Compute sky view factor and save in 'skyview' buffer
 		skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
 		    triangle_normal_local);
+
+		// Compute slope angle and aspect and save in buffer
+		double normal_z = triangle_normal_local.z;
+		if (normal_z > 1.0) {
+		    normal_z = 1.0;
+		} else if (normal_z < 0.0) {
+		    normal_z = 0.0;
+		}
+		slope_angle[i] = acos(normal_z);
+		double aspect = atan2(triangle_normal_local.x,
+		    triangle_normal_local.y);
+		if (aspect < 0.0) {
+		    aspect += (2.0 * M_PI);  // output range [0.0, 2.0 * pi]
+		}
+		slope_aspect[i] = aspect;
 
 		delete[] horizon_cell;
 

@@ -8,6 +8,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
     double* clon, double* clat, int* vertex_of_cell,
     int num_cell,
     float* horizon, float* skyview, int nhori, int refine_factor,
-    int svf_type);
+    int svf_type,
+    float* slope_angle, float* slope_aspect);
 
 #endif

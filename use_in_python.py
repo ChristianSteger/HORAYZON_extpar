@@ -197,9 +197,10 @@ svf_type = 3
 # -----------------------------------------------------------------------------
 
 t_beg = time.perf_counter()
-horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
-                                       clon, clat, vertex_of_cell,
-                                       nhori, refine_factor, svf_type)
+horizon, skyview, slope_angle, slope_aspect \
+    = horizon_svf_comp_py(vlon, vlat, topography_v,
+                          clon, clat, vertex_of_cell,
+                          nhori, refine_factor, svf_type)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
 
 # Check range of computes values
@@ -245,10 +246,14 @@ plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
 
 # Colormap
-values = skyview
-cmap = plt.get_cmap("YlGnBu_r")
+# values = skyview
+# cmap = plt.get_cmap("YlGnBu_r")
 # values = horizon[180, :]  # 0, 12
 # cmap = plt.get_cmap("afmhot_r")
+values = np.rad2deg(slope_angle)
+cmap = plt.get_cmap("YlGnBu")
+# values = np.rad2deg(slope_aspect)
+# cmap = plt.get_cmap("twilight")
 levels = MaxNLocator(nbins=20, steps=[1, 2, 5, 10], symmetric=False) \
          .tick_values(np.percentile(values, 5), np.percentile(values, 95))
 norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")
