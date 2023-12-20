@@ -107,7 +107,8 @@ def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
 # file_grid = "Brigitta/domain1_DOM01.nc"
 # file_grid = "Brigitta/domain2_DOM02.nc"
 # file_grid = "Brigitta/domain3_DOM03.nc"
-file_grid = "Brigitta/domain4_DOM04.nc"
+# file_grid = "Brigitta/domain4_DOM04.nc"
+file_grid = "Brigitta/domain_switzerland_100m.nc"
 ds = xr.open_dataset(path_extpar + file_grid)
 vlon = ds["vlon"].values  # (num_vertex; float64)
 vlat = ds["vlat"].values  # (num_vertex; float64)
@@ -120,7 +121,8 @@ ds.close()
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
-file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
+file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_100m.nc"
 ds = xr.open_dataset(path_extpar + file_topo)
 topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
@@ -245,10 +247,10 @@ plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
 
 # Colormap
-values = skyview
-cmap = plt.get_cmap("YlGnBu_r")
-# values = horizon[180, :]  # 0, 12
-# cmap = plt.get_cmap("afmhot_r")
+# values = skyview
+# cmap = plt.get_cmap("YlGnBu_r")
+values = horizon[180, :]  # 0, 12
+cmap = plt.get_cmap("afmhot_r")
 levels = MaxNLocator(nbins=20, steps=[1, 2, 5, 10], symmetric=False) \
          .tick_values(np.percentile(values, 5), np.percentile(values, 95))
 norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")
@@ -292,9 +294,9 @@ triangles = mpl.tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
                                   vertex_of_cell.transpose())
 plt.tripcolor(triangles, hsurf, cmap=cmap, norm=norm,
               edgecolors="black", linewidth=0.0)
-mask = (np.rad2deg(vlon) < 11.15)
-plt.scatter(np.rad2deg(vlon[mask]), np.rad2deg(vlat[mask]),
-            c=topography_v[mask], cmap=cmap, norm=norm, s=20)
+# mask = (np.rad2deg(vlon) < 11.15)
+# plt.scatter(np.rad2deg(vlon[mask]), np.rad2deg(vlat[mask]),
+#             c=topography_v[mask], cmap=cmap, norm=norm, s=20)
 ax.add_feature(feature.BORDERS.with_scale("10m"),
                linestyle="-", linewidth=0.6)
 ax.add_feature(feature.COASTLINE.with_scale("10m"),
