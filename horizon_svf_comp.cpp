@@ -351,7 +351,7 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
 void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	double hori_acc, float dist_search,
 	RTCScene scene, size_t &num_rays,
-	double* horizon_cell, int horizon_cell_len,
+	double* horizon_cell, int horizon_cell_len, int azim_num,
 	geom_vector sphere_normal, geom_vector north_direction,
 	double azim_sin, double azim_cos,
 	double elev_sin_1ha, double elev_cos_1ha,
@@ -378,6 +378,12 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 	ray_dir.x = north_direction.x;
 	ray_dir.y = north_direction.y;
 	ray_dir.z = north_direction.z;
+
+	// Shift in counterclockwise direction
+	double ang_shift = deg2rad(360.0/(2*azim_num));
+	double ang_shift_sin = sin(ang_shift);
+	double ang_shift_cos = cos(ang_shift);
+	ray_dir = vector_rotation(ray_dir, sphere_normal, ang_shift_sin, ang_shift_cos); 
 
     // Binary search
     bool hit;
@@ -750,7 +756,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 		ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
 			hori_acc, dist_search,
 			scene, num_rays,
-			horizon_cell, horizon_cell_len,
+			horizon_cell, horizon_cell_len, azim_num,
 			sphere_normals[i], north_directions[i],
 			azim_sin, azim_cos,
 			elev_sin_1ha, elev_cos_1ha,
