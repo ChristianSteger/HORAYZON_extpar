@@ -349,35 +349,35 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_cell, int num_cell,
 //#############################################################################
 
 bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
-	float dy, float dz, float dist_search){
+    float dy, float dz, float dist_search){
 
-	// Intersect context
-  	struct RTCIntersectContext context;
-	// rtcInitIntersectContext() initializes the intersection context
-	// to default values and should be called
-	// to initialize every ray intersection context
-  	rtcInitIntersectContext(&context);
+    // Intersect context
+    struct RTCIntersectContext context;
+    // rtcInitIntersectContext() initializes the intersection context
+    // to default values and should be called
+    // to initialize every ray intersection context
+    rtcInitIntersectContext(&context);
 
-  	// RTCRay - single ray structure - defines the ray layout for a single ray
-  	struct RTCRay ray;
-	// origin members
-  	ray.org_x = ox;
-  	ray.org_y = oy;
-  	ray.org_z = oz;
-	// direction vector
-  	ray.dir_x = dx;
-  	ray.dir_y = dy;
-  	ray.dir_z = dz;
-	// ray segment
-  	ray.tnear = 0.0;
-  	//ray.tfar = std::numeric_limits<float>::infinity();
-  	ray.tfar = dist_search;
+    // RTCRay - single ray structure - defines the ray layout for a single ray
+    struct RTCRay ray;
+    // origin members
+    ray.org_x = ox;
+    ray.org_y = oy;
+    ray.org_z = oz;
+    // direction vector
+    ray.dir_x = dx;
+    ray.dir_y = dy;
+    ray.dir_z = dz;
+    // ray segment
+    ray.tnear = 0.0;
+    //ray.tfar = std::numeric_limits<float>::infinity();
+    ray.tfar = dist_search;
 
-  	// Intersect ray with scene - function that checks
-	// wheter there is a hit with the scene
-  	rtcOccluded1(scene, &context, &ray);
+    // Intersect ray with scene - function that checks
+    // wheter there is a hit with the scene
+    rtcOccluded1(scene, &context, &ray);
 
-  	return (ray.tfar < 0.0);
+    return (ray.tfar < 0.0);
 }
 
 //#############################################################################
@@ -389,25 +389,25 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
 //-----------------------------------------------------------------------------
 
 void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
-	double hori_acc, float dist_search,
-	RTCScene scene, size_t &num_rays,
-	double* horizon_cell, int horizon_cell_len, int azim_num,
-	geom_vector sphere_normal, geom_vector north_direction,
-	double azim_sin, double azim_cos,
-	double elev_sin_1ha, double elev_cos_1ha,
-	double elev_sin_2ha, double elev_cos_2ha){
+    double hori_acc, float dist_search,
+    RTCScene scene, size_t &num_rays,
+    double* horizon_cell, int horizon_cell_len, int azim_num,
+    geom_vector sphere_normal, geom_vector north_direction,
+    double azim_sin, double azim_cos,
+    double elev_sin_1ha, double elev_cos_1ha,
+    double elev_sin_2ha, double elev_cos_2ha){
 
-	// ------------------------------------------------------------------------
-  	// First azimuth direction -> binary search
-  	// ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // First azimuth direction -> binary search
+    // ------------------------------------------------------------------------
 
-	// Lower/upper limit of 'binary search sector'
-	double lim_low = -(M_PI / 2.0);  // [rad] (-90.0 deg)
-  	double lim_up = +(M_PI / 2.0);  // [rad] (+90.0 deg)
+    // Lower/upper limit of 'binary search sector'
+    double lim_low = -(M_PI / 2.0);  // [rad] (-90.0 deg)
+    double lim_up = +(M_PI / 2.0);  // [rad] (+90.0 deg)
 
-	// Initial elevation angle
-  	double elev_ang = (lim_low + lim_up) / 2.0;
-  	double ang_rot = 0.0;
+    // Initial elevation angle
+    double elev_ang = (lim_low + lim_up) / 2.0;
+    double ang_rot = 0.0;
 
     // Rotation axis (-> unit vector because cross product of two 
     // perpendicular unit vectors)
