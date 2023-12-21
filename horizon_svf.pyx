@@ -66,12 +66,12 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
     if vertex_of_cell.shape[0] != 3:
         raise ValueError("First dimension of 'vertex_of_cell' must have "
                             + "length 3")
-    if (nhori < 4) or (nhori > 3_600):
-        raise ValueError("'nhori' must be in the range [4, 3_600]")
+    if (nhori < 4) or (nhori > 1440):
+        raise ValueError("'nhori' must be in the range [4, 1440]")
     if (vertex_of_cell.min() < 1) or (vertex_of_cell.max() > vlon.size):
         raise ValueError("Indices of 'vertex_of_cell' out of range")
-    if (refine_factor < 1) or (refine_factor > 100):
-        raise ValueError("'refine_factor' must be in the range [1, 100]")
+    if (refine_factor < 1) or (refine_factor > 50):
+        raise ValueError("'refine_factor' must be in the range [1, 50]")
     if (svf_type < 0) or (svf_type > 3):
         raise ValueError("'svf_type' must be in the range [0, 3]")
 
