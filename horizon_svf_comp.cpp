@@ -391,7 +391,8 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
 void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
     double hori_acc, float dist_search,
     RTCScene scene, size_t &num_rays,
-    double* horizon_cell, int horizon_cell_len, int azim_num,
+    double* horizon_cell, int horizon_cell_len,
+    double azim_shift,
     geom_vector sphere_normal, geom_vector north_direction,
     double azim_sin, double azim_cos,
     double elev_sin_1ha, double elev_cos_1ha,
@@ -419,11 +420,10 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
     ray_dir.y = north_direction.y;
     ray_dir.z = north_direction.z;
 
-    // Rotate initial ray counterclockwise so that first azimuth sector
-    // is centred around 0.0 deg (-> pointing towards North)
-    double ang_shift = deg2rad(360.0 / (2.0 * azim_num));
-    ray_dir = vector_rotation(ray_dir, sphere_normal, sin(ang_shift),
-        cos(ang_shift));
+    // Shift azimuth angle in case of 'refine_factor' > 1 so that first
+    // azimuth sector is centred around 0.0 deg (North)
+    ray_dir = vector_rotation(ray_dir, sphere_normal, sin(-azim_shift),
+        cos(-azim_shift));
 
     // Binary search
     bool hit;
@@ -510,7 +510,7 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
 
 // Function pointer
 double (*function_pointer)(double* horizon_cell, int horizon_cell_len,
-    geom_vector normal);
+    geom_vector normal, double azim_shift);
 
 //-----------------------------------------------------------------------------
 // Visible sky fraction for horizontal plane
@@ -518,7 +518,7 @@ double (*function_pointer)(double* horizon_cell, int horizon_cell_len,
 //-----------------------------------------------------------------------------
 
 double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
-    geom_vector normal){
+    geom_vector normal, double azim_shift){
 
 	double svf = 0.0;
 	for(int i = 0; i < horizon_cell_len; i++){
@@ -534,7 +534,7 @@ double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
 //-----------------------------------------------------------------------------
 
 double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
-    geom_vector normal){
+    geom_vector normal, double azim_shift){
 
 	double svf = 0.0;
 	for(int i = 0; i < horizon_cell_len; i++){
@@ -550,7 +550,7 @@ double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
 //-----------------------------------------------------------------------------
 
 double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
-    geom_vector normal){
+    geom_vector normal, double azim_shift){
 
 	double svf = 0.0;
 	for(int i = 0; i < horizon_cell_len; i++){
@@ -566,7 +566,7 @@ double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
 //-----------------------------------------------------------------------------
 
 double sky_view_factor(double* horizon_cell, int horizon_cell_len,
-    geom_vector normal){
+    geom_vector normal, double azim_shift){
 
     /*Compute sky view factor considering the sloped terrain and Lambert's
     cosine law.
@@ -579,6 +579,8 @@ double sky_view_factor(double* horizon_cell, int horizon_cell_len,
         Number of azimuth directions with horizon values
     normal : geom_vector
         Terrain surface normal (x, y, z) in local ENU coordinates [m]
+    azim_shift : double
+        Deviation in first azimuth angle from 0.0 deg (North) [rad]
 
     Returns
     -------
@@ -598,8 +600,8 @@ double sky_view_factor(double* horizon_cell, int horizon_cell_len,
 
 	for(int i = 0; i < horizon_cell_len; i++){
 
-		azim_sin = sin(i * (azim_spac));
-		azim_cos = cos(i * (azim_spac));
+		azim_sin = sin((i * azim_spac) + azim_shift);
+		azim_cos = cos((i * azim_spac) + azim_shift);
 
 		// Compute the plane-sphere intersection and select the maximum
 		// between it and the elevation angle
@@ -715,6 +717,16 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
     double elev_cos_2ha = cos(2.0 * hori_acc);
     // Note: sin(-x) == -sin(x), cos(x) == cos(-x)
 
+    // Compute shift for azimuth angle so that first azimuth sector is
+    // centred around 0.0 deg (North) in case of 'refine_factor' > 1
+    double azim_shift;
+    if (refine_factor == 1) {
+        azim_shift = 0.0;
+    } else {
+        azim_shift = -(deg2rad(360.0) / (2.0 * azim_num))
+            + (deg2rad(360.0) / (2.0 * (double)horizon_cell_len));
+    }
+
     // Select algorithm for sky view factor computation
     std::cout << "Sky View Factor computation algorithm: ";
     if (svf_type == 0) {
@@ -796,7 +808,8 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
         ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
             hori_acc, dist_search,
             scene, num_rays,
-            horizon_cell, horizon_cell_len, azim_num,
+            horizon_cell, horizon_cell_len,
+            azim_shift,
             sphere_normals[i], north_directions[i],
             azim_sin, azim_cos,
             elev_sin_1ha, elev_cos_1ha,
@@ -834,7 +847,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 
         // Compute sky view factor and save in 'skyview' buffer
         skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
-            triangle_normal_local);
+            triangle_normal_local, azim_shift);
 
         delete[] horizon_cell;
 

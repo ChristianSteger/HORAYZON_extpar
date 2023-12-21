@@ -250,10 +250,10 @@ plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
 
 # Colormap
-# values = skyview
-# cmap = plt.get_cmap("YlGnBu_r")
-values = horizon[180, :]  # 0, 12
-cmap = plt.get_cmap("afmhot_r")
+values = skyview
+cmap = plt.get_cmap("YlGnBu_r")
+# values = horizon[180, :]  # 0, 12
+# cmap = plt.get_cmap("afmhot_r")
 levels = MaxNLocator(nbins=20, steps=[1, 2, 5, 10], symmetric=False) \
          .tick_values(np.percentile(values, 5), np.percentile(values, 95))
 norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")
@@ -310,3 +310,36 @@ gl.top_labels = False
 gl.right_labels = False
 plt.colorbar()
 plt.title("Elevation [m a.s.l]")
+
+
+# -----------------------------------------------------------------------------
+# Check that azimuth directions are correct -> remove later again...
+# -----------------------------------------------------------------------------
+
+refine_factor = 9
+azim_num = 133
+horizon_cell_len = azim_num * refine_factor
+print("horizon_cell_len: " + str(horizon_cell_len))
+azim_spac = 360.0 / horizon_cell_len
+
+if refine_factor == 1:
+    azim_shift = 0.0
+else:
+    azim_shift = -(360.0 / (2.0 * azim_num)) \
+                 + (360.0 / (2.0 * horizon_cell_len))
+
+azim = np.empty(horizon_cell_len, dtype=np.float64)
+azim[0] = azim_shift
+for i in range(1, horizon_cell_len):
+    azim[i] = azim[i - 1] + azim_spac
+
+print(np.all(np.abs(np.diff(azim) - azim_spac) < 1e-10))
+
+azim_out = np.empty(azim_num, dtype=np.float64)
+for j in range(azim_num):
+    azim_mean = 0.0
+    for k in range(refine_factor):
+        azim_mean += azim[(j * refine_factor) + k]
+    azim_out[j] = azim_mean / float(refine_factor)
+with np.printoptions(precision=3, suppress=True):
+    print(azim_out)
