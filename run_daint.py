@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 
 # Path to folders
-path_extpar = "/project/pr133/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
+path_extpar = "/scratch/snx3000/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
 sys.path.append("/scratch/snx3000/csteger/EXTPAR_HORAYZON/Semester_Project/")
@@ -48,8 +48,8 @@ from horizon_svf import horizon_svf_comp_py
 # file_grid = "Brigitta/domain1_DOM01.nc"
 # file_grid = "Brigitta/domain2_DOM02.nc"
 # file_grid = "Brigitta/domain3_DOM03.nc"
-file_grid = "Brigitta/domain4_DOM04.nc"
-# file_grid = "Brigitta/domain_switzerland_100m.nc"
+# file_grid = "Brigitta/domain4_DOM04.nc"
+file_grid = "Brigitta/domain_switzerland_100m.nc"
 ds = xr.open_dataset(path_extpar + file_grid)
 vlon = ds["vlon"].values  # (num_vertex; float64)
 vlat = ds["vlat"].values  # (num_vertex; float64)
@@ -62,9 +62,9 @@ ds.close()
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
-file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
-#             + "100m.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
+file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
+            + "100m.nc"
 ds = xr.open_dataset(path_extpar + file_topo)
 topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
