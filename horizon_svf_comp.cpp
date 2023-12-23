@@ -120,13 +120,13 @@ std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
         Array with elevation above sphere [m]
     num_point : int
         Number of points
-	rad_earth : double
-	    Radius of Earth [m]
+    rad_earth : double
+        Radius of Earth [m]
 
     Returns
     -------
     points : vector of type <geom_point>
-		Vector of points (x, y, z) in ECEF coordinates [m]*/
+        Vector of points (x, y, z) in ECEF coordinates [m]*/
 
     vector<geom_point> points(num_point);
     for (int i = 0; i < num_point; i++){
@@ -149,17 +149,17 @@ std::vector<geom_vector> north_direction(vector<geom_point> points,
     Parameters
     ----------
     points : vector of type <geom_point>
-		Vector of points (x, y, z) in ECEF coordinates [m]
+        Vector of points (x, y, z) in ECEF coordinates [m]
     sphere_normals : vector of type <geom_vector>
-		Vector of sphere normals (x, y, z) at the point locations in ECEF
-		coordinates [m]
-	rad_earth : double
-	    Radius of Earth [m]
+        Vector of sphere normals (x, y, z) at the point locations in ECEF
+	coordinates [m]
+    rad_earth : double
+        Radius of Earth [m]
 
     Returns
     -------
     north_directions : vector of type <geom_vector>
-		Vector with north directions (x, y, z) in ECEF coordinates [m]*/
+        Vector with north directions (x, y, z) in ECEF coordinates [m]*/
 
     geom_vector v_p = {0.0, 0.0, rad_earth};  // north pole in ECEF coordinates
 	vector<geom_vector> north_directions(points.size());
@@ -190,13 +190,13 @@ void ecef2enu_point(vector<geom_point>& points, double lon_orig,
     Parameters
     ----------
     points : vector of type <geom_point>
-		Vector of points (x, y, z) in ECEF (in) coordinates [m]
+        Vector of points (x, y, z) in ECEF (in) coordinates [m]
     lon_orig : double
         Longitude of ENU coordinate system origin [rad]
     lat_orig : double
         Latitude of ENU coordinate system origin [rad]
-	rad_earth : double
-	    Radius of Earth [m]*/
+    rad_earth : double
+        Radius of Earth [m]*/
 
     double sin_lon = sin(lon_orig);
     double cos_lon = cos(lon_orig);
@@ -234,7 +234,7 @@ void ecef2enu_vector(vector<geom_vector>& vectors, double lon_orig,
     Parameters
     ----------
     vectors : vector of type <geom_vector>
-		Vector of vectors (x, y, z) in ECEF (in) coordinates [m]
+        Vector of vectors (x, y, z) in ECEF (in) coordinates [m]
     lon_orig : double
         Longitude of ENU coordinate system origin [rad]
     lat_orig : double
@@ -520,11 +520,11 @@ double (*function_pointer)(double* horizon_cell, int horizon_cell_len,
 double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
     geom_vector normal, double azim_shift){
 
-	double svf = 0.0;
-	for(int i = 0; i < horizon_cell_len; i++){
-		svf += (1.0 - sin(horizon_cell[i]));
-	}
-	svf /= (double)horizon_cell_len;
+    double svf = 0.0;
+    for(int i = 0; i < horizon_cell_len; i++){
+        svf += (1.0 - sin(horizon_cell[i]));
+    }
+    svf /= (double)horizon_cell_len;
     return svf;
 }
 
@@ -536,12 +536,12 @@ double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
 double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
     geom_vector normal, double azim_shift){
 
-	double svf = 0.0;
-	for(int i = 0; i < horizon_cell_len; i++){
-		svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])));
-	}
-	svf /= (double)horizon_cell_len;
-	return svf;
+    double svf = 0.0;
+    for(int i = 0; i < horizon_cell_len; i++){
+        svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])));
+    }
+    svf /= (double)horizon_cell_len;
+    return svf;
 }
 
 //-----------------------------------------------------------------------------
@@ -552,13 +552,13 @@ double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
 double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
     geom_vector normal, double azim_shift){
 
-	double svf = 0.0;
-	for(int i = 0; i < horizon_cell_len; i++){
-		svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])
-		    * sin(horizon_cell[i])));
-	}
-	svf /= (double)horizon_cell_len;
-	return svf;
+    double svf = 0.0;
+    for(int i = 0; i < horizon_cell_len; i++){
+        svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])
+            * sin(horizon_cell[i])));
+    }
+    svf /= (double)horizon_cell_len;
+    return svf;
 }
 
 //-----------------------------------------------------------------------------
@@ -586,40 +586,40 @@ double sky_view_factor(double* horizon_cell, int horizon_cell_len,
     -------
     svf : sky view factor [-]
 
-	Reference
-	---------
-	Steger et al. (2022): HORAYZON v1.2: an efficient and flexible ray-tracing
-	algorithm to compute horizon and sky view factor,
-	https://doi.org/10.5194/gmd-15-6817-2022, Equation 11*/
+    Reference
+    ---------
+    Steger et al. (2022): HORAYZON v1.2: an efficient and flexible ray-tracing
+    algorithm to compute horizon and sky view factor,
+    https://doi.org/10.5194/gmd-15-6817-2022, Equation 11*/
 
-	double svf = 0.0;
-	double azim_spac = deg2rad(360.0) / (double)horizon_cell_len;
-	double hori_plane, hori_elev;
-	double azim_sin;
-	double azim_cos;
+    double svf = 0.0;
+    double azim_spac = deg2rad(360.0) / (double)horizon_cell_len;
+    double hori_plane, hori_elev;
+    double azim_sin;
+    double azim_cos;
 
-	for(int i = 0; i < horizon_cell_len; i++){
+    for(int i = 0; i < horizon_cell_len; i++){
 
-		azim_sin = sin((i * azim_spac) + azim_shift);
-		azim_cos = cos((i * azim_spac) + azim_shift);
+        azim_sin = sin((i * azim_spac) + azim_shift);
+	azim_cos = cos((i * azim_spac) + azim_shift);
 
-		// Compute the plane-sphere intersection and select the maximum
-		// between it and the elevation angle
-		hori_plane = atan(-(normal.x / normal.z) * azim_sin
-		    - (normal.y / normal.z) * azim_cos);
-		if (horizon_cell[i] >= hori_plane){
-			hori_elev = horizon_cell[i];
-		} else {
-			hori_elev = hori_plane;
-		}
-
-		svf += (normal.x * azim_sin + normal.y * azim_cos)
-		    * ((M_PI / 2.0) - hori_elev - (sin(2.0 * hori_elev) / 2.0))
-		    + normal.z * cos(hori_elev) * cos(hori_elev);
+	// Compute the plane-sphere intersection and select the maximum
+	// between it and the elevation angle
+	hori_plane = atan(-(normal.x / normal.z) * azim_sin
+	    - (normal.y / normal.z) * azim_cos);
+	if (horizon_cell[i] >= hori_plane){
+	    hori_elev = horizon_cell[i];
+	} else {
+	    hori_elev = hori_plane;
 	}
-	svf = (azim_spac / (2 * M_PI)) * svf;
 
-	return svf;
+	svf += (normal.x * azim_sin + normal.y * azim_cos)
+	    * ((M_PI / 2.0) - hori_elev - (sin(2.0 * hori_elev) / 2.0))
+	    + normal.z * cos(hori_elev) * cos(hori_elev);
+	}
+    svf = (azim_spac / (2 * M_PI)) * svf;
+
+    return svf;
 }
 
 //#############################################################################
@@ -635,7 +635,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
 
     // Settings and constants
     double hori_acc = deg2rad(0.25);  // horizon accuracy [deg] (1.0)
-    double ray_org_elev = 0.1;  // fix elevation offset [m] (0.1, 0.2, 0.5)
+    double ray_org_elev = 0.1;  // elevation offset [m] (0.1, 0.2, 0.5)
     float dist_search = 40000;  // horizon search distance [m] (50000.0)
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
 
@@ -789,7 +789,7 @@ void horizon_svf_comp(double* vlon, double* vlat, float* topography_v,
                     + triangle_normal.y * sphere_normals[i].y
                     + triangle_normal.z * sphere_normals[i].z);
 
-        // Circumcenters at tirangles' elevation
+        // Circumcenters at triangles' elevation
         circumcenters[i].x += t * sphere_normals[i].x;
         circumcenters[i].y += t * sphere_normals[i].y;
         circumcenters[i].z += t * sphere_normals[i].z;
