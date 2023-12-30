@@ -7,6 +7,7 @@ import xarray as xr
 
 # Path to folders
 path_extpar = "/scratch/snx3000/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
+path_out = "/scratch/snx3000/csteger/EXTPAR_HORAYZON/output/"
 
 # Path to Cython/C++ functions
 sys.path.append("/scratch/snx3000/csteger/EXTPAR_HORAYZON/Semester_Project/")
@@ -95,3 +96,29 @@ print("Terrain horizon range [deg]: %.5f" % np.min(horizon)
       + ", %.5f" % np.max(horizon))
 print("Sky view factor range [-]: %.8f" % np.min(skyview)
       + ", %.8f" % np.max(skyview))
+
+# -----------------------------------------------------------------------------
+# Save output to NetCDF file
+# -----------------------------------------------------------------------------
+
+ds = xr.Dataset({
+    "HORIZON": xr.DataArray(
+        data=horizon,
+        dims=["nhori", "cell"],
+        attrs={
+            "units": "deg"
+        }
+    ),
+    "SKYVIEW": xr.DataArray(
+        data=skyview,
+        dims=["cell"],
+        attrs={
+            "units": "-"
+        }
+    )
+},
+    attrs={"settings": "refine_factor: " + str(refine_factor)
+                       + ", svf_type: " + str(svf_type)}
+)
+file_out = file_grid.split("/")[-1].split(".")[0] + "_horizon_svf.nc"
+ds.to_netcdf(path_out + file_out)
