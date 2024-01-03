@@ -15,9 +15,11 @@ from pyproj import Transformer
 mpl.style.use("classic")
 
 # Path to folders
+# path_extpar = "/home/catecroci/SP_files/" \
+#               + "ICON_grids_EXTPAR/"
 root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
-path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/"\
-              + "ICON_grids_EXTPAR/"
+path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
+               + "ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
 sys.path.append("/Users/csteger/Downloads/Semester_Project/")
@@ -108,6 +110,7 @@ def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
 # file_grid = "Brigitta/domain2_DOM02.nc"
 # file_grid = "Brigitta/domain3_DOM03.nc"
 file_grid = "Brigitta/domain4_DOM04.nc"
+# file_grid = "Brigitta/domain_switzerland_100m.nc"
 ds = xr.open_dataset(path_extpar + file_grid)
 vlon = ds["vlon"].values  # (num_vertex; float64)
 vlat = ds["vlat"].values  # (num_vertex; float64)
@@ -121,6 +124,8 @@ ds.close()
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
 # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
 file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
+#             + "100m.nc"
 ds = xr.open_dataset(path_extpar + file_topo)
 topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
@@ -130,13 +135,35 @@ hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
 ds.close()
 
 # Further settings
-# nhori = 24
-# refine_factor = 10
-nhori = 240
-refine_factor = 1
+nhori = 24
+refine_factor = 10
+# nhori = 240
+# refine_factor = 1
 svf_type = 3
 mask_cell = np.ones(clon.size, dtype=np.uint8)
 # mask_cell[:258502] = 0  # consider half of the cells
+
+# -----------------------------------------------------------------------------
+# Very large and coarse grid -> check transformation of triangle surface
+# normals from global to local ENU
+# -----------------------------------------------------------------------------
+
+# # Important note:
+# # -> 'double ray_org_elev = 0.5' required -> otherwise, infinite loop occurs
+#
+# file_grid = "child_grid_very_large_coarse.nc"
+# ds = xr.open_dataset(path_extpar + file_grid)
+# vlon = ds["vlon"].values  # (num_vertex; float64)
+# vlat = ds["vlat"].values  # (num_vertex; float64)
+# clon = ds["clon"].values  # (num_cell; float64)
+# clat = ds["clat"].values  # (num_cell; float64)
+# vertex_of_cell = ds["vertex_of_cell"].values  # (3, num_cell; int32)
+# ds.close()
+# topography_v = np.zeros(vlon.size, dtype=np.float32)
+#
+# nhori = 24
+# refine_factor = 1
+# svf_type = 3
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing (small; only 3 cells)
@@ -151,8 +178,8 @@ mask_cell = np.ones(clon.size, dtype=np.uint8)
 #                            [4, 5, 2],
 #                            [4, 2, 3]], dtype=np.int32).transpose()
 # nhori = 24
-# svf_type = 0
 # refine_factor = 1
+# svf_type = 0
 
 # -----------------------------------------------------------------------------
 # Artificial Data for testing (-> 'dummy data' -> only use for testing the
@@ -169,6 +196,7 @@ mask_cell = np.ones(clon.size, dtype=np.uint8)
 # vertex_of_cell = np.zeros((3, num_cell), dtype=np.int32)
 # mask = np.ones_like(clon, dtype=np.uint8)
 # nhori = 24
+# refine_factor = 1
 # svf_type = 0
 
 # -----------------------------------------------------------------------------
@@ -225,10 +253,10 @@ plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
 
 # Colormap
-# values = skyview
-# cmap = plt.get_cmap("YlGnBu_r")
-values = horizon[180, :]  # 0, 12
-cmap = plt.get_cmap("afmhot_r")
+values = skyview
+cmap = plt.get_cmap("YlGnBu_r")
+# values = horizon[180, :]  # 0, 12
+# cmap = plt.get_cmap("afmhot_r")
 levels = MaxNLocator(nbins=20, steps=[1, 2, 5, 10], symmetric=False) \
          .tick_values(np.nanpercentile(values, 5),
                       np.nanpercentile(values, 95))
@@ -273,9 +301,9 @@ triangles = mpl.tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
                                   vertex_of_cell.transpose())
 plt.tripcolor(triangles, hsurf, cmap=cmap, norm=norm,
               edgecolors="black", linewidth=0.0)
-mask = (np.rad2deg(vlon) < 11.15)
-plt.scatter(np.rad2deg(vlon[mask]), np.rad2deg(vlat[mask]),
-            c=topography_v[mask], cmap=cmap, norm=norm, s=20)
+# mask = (np.rad2deg(vlon) < 11.15)
+# plt.scatter(np.rad2deg(vlon[mask]), np.rad2deg(vlat[mask]),
+#             c=topography_v[mask], cmap=cmap, norm=norm, s=20)
 ax.add_feature(feature.BORDERS.with_scale("10m"),
                linestyle="-", linewidth=0.6)
 ax.add_feature(feature.COASTLINE.with_scale("10m"),
