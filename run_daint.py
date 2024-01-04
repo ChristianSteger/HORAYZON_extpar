@@ -14,72 +14,51 @@ sys.path.append("/scratch/snx3000/csteger/EXTPAR_HORAYZON/Semester_Project/")
 from horizon_svf import horizon_svf_comp_py
 
 # -----------------------------------------------------------------------------
-# Real data (EXTPAR test domain DOM01)
-# -----------------------------------------------------------------------------
-
-# # Load grid information
-# file_grid = "EXTPAR_test/icon_grid_DOM01.nc"
-# ds = xr.open_dataset(path_extpar + file_grid)
-# vlon = ds["vlon"].values  # (num_vertex; float64)
-# vlat = ds["vlat"].values  # (num_vertex; float64)
-# clon = ds["clon"].values  # (num_cell; float64)
-# clat = ds["clat"].values  # (num_cell; float64)
-# vertex_of_cell = ds["vertex_of_cell"].values  # (3, num_cell; int32)
-# ds.close()
-#
-# # Load elevation of cell vertices
-# file_topo = "EXTPAR_test/topography_buffer_extpar_v5.8_icon_grid_DOM01.nc"
-# ds = xr.open_dataset(path_extpar + file_topo)
-# nhori = ds["nhori"].size
-# topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
-# hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
-# horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
-# skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
-# ds.close()
-#
-# # Further settings
-# svf_type = 0
-# refine_factor = 10
-
-# -----------------------------------------------------------------------------
-# Real data (Brigitta)
+# Real data (resolutions from ~2km to ~30 m)
 # -----------------------------------------------------------------------------
 
 # Load grid information
-# file_grid = "Brigitta/domain1_DOM01.nc"
-# file_grid = "Brigitta/domain2_DOM02.nc"
-# file_grid = "Brigitta/domain3_DOM03.nc"
-# file_grid = "Brigitta/domain4_DOM04.nc"
-file_grid = "Brigitta/domain_switzerland_100m.nc"
+file_grid = "Resolutions/icon_grid_res0032m.nc"
+# file_grid = "Resolutions/icon_grid_res0130m.nc"
+# file_grid = "Resolutions/icon_grid_res0519m.nc"
+# file_grid = "Resolutions/icon_grid_res2076m.nc"
 ds = xr.open_dataset(path_extpar + file_grid)
 vlon = ds["vlon"].values  # (num_vertex; float64)
 vlat = ds["vlat"].values  # (num_vertex; float64)
 clon = ds["clon"].values  # (num_cell; float64)
 clat = ds["clat"].values  # (num_cell; float64)
-vertex_of_cell = ds["vertex_of_cell"].values  # (3, num_cell; int32)
+vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
+edge_of_cell = ds["edge_of_cell"].values - 1  # (3, num_cell)
+adjacent_cell_of_edge = ds["adjacent_cell_of_edge"].values - 1  # (2, num_edge)
+cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
 ds.close()
 
 # Load elevation of cell vertices
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
-file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
-            + "100m.nc"
+file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0032m.nc"
+# file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0130m.nc"
+# file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0519m.nc"
+# file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res2076m.nc"
 ds = xr.open_dataset(path_extpar + file_topo)
 topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
-# nhori = ds["nhori"].size
-# horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
-# skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
 ds.close()
 
 # Further settings
 nhori = 24
 refine_factor = 10
-# nhori = 240
-# refine_factor = 1
 svf_type = 3
+
+# Find outermost cells and indices of cell vertices
+mask_cell_outer = np.zeros(clon.size, dtype=bool)
+for i in range(clon.size):
+    if np.any(adjacent_cell_of_edge[:, edge_of_cell[:, i]] == -2):
+        mask_cell_outer[i] = True
+ind_vertices_outer = np.unique(vertex_of_cell[:, np.where(mask_cell_outer)[0]])
+
+# Adjust erroneous elevation values of outermost cell vertices
+for i in ind_vertices_outer:
+    mask = cells_of_vertex[:, i] != -2
+    topography_v[i] = hsurf[cells_of_vertex[:, i][mask]].mean()
 
 # -----------------------------------------------------------------------------
 # Compute horizon and sky view factor
@@ -87,7 +66,7 @@ svf_type = 3
 
 t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
-                                       clon, clat, vertex_of_cell,
+                                       clon, clat, (vertex_of_cell + 1),
                                        nhori, refine_factor, svf_type)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
 
