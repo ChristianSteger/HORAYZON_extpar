@@ -410,10 +410,6 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
     double elev_ang = (lim_low + lim_up) / 2.0;
     double ang_rot = 0.0;
 
-    // Rotation axis (-> unit vector because cross product of two 
-    // perpendicular unit vectors)
-    geom_vector rot_axis = cross_product(north_direction, sphere_normal);
-
     // Initial ray direction
     geom_vector ray_dir;
     ray_dir.x = north_direction.x;
@@ -424,6 +420,10 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
     // azimuth sector is centred around 0.0 deg (North)
     ray_dir = vector_rotation(ray_dir, sphere_normal, sin(-azim_shift),
         cos(-azim_shift));
+
+    // Rotation axis (-> unit vector because cross product of two
+    // perpendicular unit vectors)
+    geom_vector rot_axis = cross_product(ray_dir, sphere_normal);
 
     // Binary search
     bool hit;
