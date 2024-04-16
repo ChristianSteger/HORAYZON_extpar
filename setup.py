@@ -16,10 +16,12 @@ if sys.platform in ["linux", "linux2"]:
     print("Operating system: Linux")
     lib_end = ".so"
     compiler = "gcc"
+    extra_compile_args=["-O3"]
 elif sys.platform in ["darwin"]:
     print("Operating system: Mac OS X")
     lib_end = ".dylib"
     compiler = "clang"
+    extra_compile_args=["-O3", "-std=c++11"]
 elif sys.platform in ["win32"]:
     print("Operating system: Windows")
     print("Warning: Package not yet tested for Windows")
@@ -39,6 +41,6 @@ setup(ext_modules=cythonize(Extension(
            sources=["horizon_svf.pyx", "horizon_svf_comp.cpp"],
            include_dirs=include_dirs_cpp,
            extra_objects=extra_objects_cpp,
-           extra_compile_args=["-O3"],
+           extra_compile_args=extra_compile_args,
            language="c++",
       )))
