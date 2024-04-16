@@ -22,7 +22,7 @@ path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
                + "ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
-sys.path.append("/Users/csteger/Downloads/Semester_Project/")
+sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
 from horizon_svf import horizon_svf_comp_py
 
 # -----------------------------------------------------------------------------
