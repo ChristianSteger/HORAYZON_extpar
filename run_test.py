@@ -91,7 +91,6 @@ def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
 # file_topo = "EXTPAR_test/topography_buffer_extpar_v5.8_icon_grid_DOM01.nc"
 # ds = xr.open_dataset(path_extpar + file_topo)
 # nhori = ds["nhori"].size
-# topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 # hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
 # horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
 # skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
@@ -127,7 +126,6 @@ def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
 # # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
 # #             + "100m.nc"
 # ds = xr.open_dataset(path_extpar + file_topo)
-# topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 # hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
 # # nhori = ds["nhori"].size
 # # horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
@@ -156,10 +154,100 @@ vlat = ds["vlat"].values  # (num_vertex; float64)
 clon = ds["clon"].values  # (num_cell; float64)
 clat = ds["clat"].values  # (num_cell; float64)
 vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
-edge_of_cell = ds["edge_of_cell"].values - 1  # (3, num_cell)
-adjacent_cell_of_edge = ds["adjacent_cell_of_edge"].values - 1  # (2, num_edge)
 cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
 ds.close()
+
+# Test plot
+colors = ["coral", "firebrick", "blueviolet", "royalblue"]
+plt.figure()
+ax = plt.axes()
+# for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0785) 
+#                     & (vlat >= 0.77) & (vlat <= 0.7735))[0]:
+for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0773) 
+                    & (vlat >= 0.77) & (vlat <= 0.7715))[0]:
+    # -------------------------------------------------------------------------
+    poly_vert_num = 0
+    angles = np.empty(6, dtype=np.float32)
+    angles.fill(999.9)
+    for ind_c in cells_of_vertex[:, ind_v]:
+        if ind_c != -2:
+            plt.scatter(clon[ind_c], clat[ind_c], color="black", s=25)
+            # plt.text(float(clon[ind_c]) + 3e-06, float(clat[ind_c]) + 3e-06,
+            #          str(poly_vert_num), fontsize=12)
+            angle = np.rad2deg(np.arctan2(clon[ind_c] - vlon[ind_v],
+                                          clat[ind_c] - vlat[ind_v]))
+            if angle < 0.0:
+                angle += 360.0
+            angles[poly_vert_num] = angle
+            # plt.text(float(clon[ind_c]) - 15e-06,
+            #          float(clat[ind_c]) - 15e-06,
+            #          "%.1f" % angle, fontsize=9, color="blue")
+            x_poly = vlon[vertex_of_cell[:, ind_c]]
+            y_poly = vlat[vertex_of_cell[:, ind_c]]
+            poly = plt.Polygon(list(zip(x_poly, y_poly)), facecolor="none",
+                    edgecolor="black", lw=1.0)
+            ax.add_patch(poly)
+            poly_vert_num += 1
+    # -------------------------------------------------------------------------
+    plt.scatter(vlon[ind_v], vlat[ind_v], color="black", s=150, marker="*")
+    if (cells_of_vertex[:, ind_v] != -2).sum() < 3:
+        # not enought vertices for a triangle...
+        continue
+    ind_sort = np.argsort(angles)
+    indices = np.array([0, 1, 2])
+    for i in range(poly_vert_num - 2):
+        x_poly = clon[cells_of_vertex[ind_sort[indices], ind_v]]
+        y_poly = clat[cells_of_vertex[ind_sort[indices], ind_v]]
+        poly = plt.Polygon(list(zip(x_poly, y_poly)), facecolor=colors[i],
+                           edgecolor="black", alpha=0.3)
+        ax.add_patch(poly)
+        indices[1:] += 1
+    # -------------------------------------------------------------------------
+
+# Compute indices of triangle vertices (clon, clat)
+temp = ((cells_of_vertex != -2).sum(axis=0) - 2)
+num_tri = temp[temp >= 1].sum()
+vertex_of_triangle = np.empty((3, num_tri), dtype=np.int32)
+n = 0
+# for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0785) 
+#                     & (vlat >= 0.77) & (vlat <= 0.7735))[0]:
+# for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0773) 
+#                     & (vlat >= 0.77) & (vlat <= 0.7715))[0]:
+for ind_v in range(0, vlon.size):
+    # -------------------------------------------------------------------------
+    if (cells_of_vertex[:, ind_v] != -2).sum() < 3:
+        # not enought vertices for a triangle...
+        continue
+    poly_vert_num = 0
+    angles = np.empty(6, dtype=np.float32)
+    angles.fill(999.9)
+    for ind_c in cells_of_vertex[:, ind_v]:
+        if ind_c != -2:
+            angle = np.rad2deg(np.arctan2(clon[ind_c] - vlon[ind_v],
+                                          clat[ind_c] - vlat[ind_v]))
+            if angle < 0.0:
+                angle += 360.0
+            angles[poly_vert_num] = angle
+            poly_vert_num += 1
+    # -------------------------------------------------------------------------
+    ind_sort = np.argsort(angles)
+    indices = np.array([0, 1, 2])
+    for i in range(poly_vert_num - 2):
+        vertex_of_triangle[:, n] = cells_of_vertex[ind_sort[indices], ind_v]
+        indices[1:] += 1
+        n += 1
+    # -------------------------------------------------------------------------
+
+
+
+# Test plot
+plt.figure()
+plt.scatter(clon, clat, color="red", s=20)
+triangles = mpl.tri.Triangulation(clon, clat,
+                                  vertex_of_triangle[:, :n].transpose())
+plt.triplot(triangles, color="black", linewidth=1.0)
+
+
 
 # Load elevation of cell vertices
 # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0032m.nc"
@@ -167,7 +255,6 @@ ds.close()
 file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0519m.nc"
 # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res2076m.nc"
 ds = xr.open_dataset(path_extpar + file_topo)
-topography_v = ds["topography_v"].values.squeeze()  # (num_vertex; float32)
 hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
 ds.close()
 
@@ -178,17 +265,6 @@ refine_factor = 10
 # refine_factor = 1
 svf_type = 3
 
-# Find outermost cells and indices of cell vertices
-mask_cell_outer = np.zeros(clon.size, dtype=bool)
-for i in range(clon.size):
-    if np.any(adjacent_cell_of_edge[:, edge_of_cell[:, i]] == -2):
-        mask_cell_outer[i] = True
-ind_vertices_outer = np.unique(vertex_of_cell[:, np.where(mask_cell_outer)[0]])
-
-# Adjust erroneous elevation values of outermost cell vertices
-for i in ind_vertices_outer:
-    mask = cells_of_vertex[:, i] != -2
-    topography_v[i] = hsurf[cells_of_vertex[:, i][mask]].mean()
 
 # -----------------------------------------------------------------------------
 # Very large and coarse grid -> check transformation of triangle surface
