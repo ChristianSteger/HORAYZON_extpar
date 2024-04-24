@@ -15,14 +15,14 @@ from pyproj import Transformer
 mpl.style.use("classic")
 
 # Path to folders
-# path_extpar = "/home/catecroci/SP_files/" \
-#               + "ICON_grids_EXTPAR/"
-root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
-path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
-               + "ICON_grids_EXTPAR/"
+path_extpar = "/scratch/mch/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
+# root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
+# path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
+#                + "ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
-sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
+sys.path.append("/scratch/mch/csteger/HORAYZON_extpar/")
+# sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
 from horizon_svf import horizon_svf_comp_py
 
 # -----------------------------------------------------------------------------
@@ -70,6 +70,7 @@ def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
     theta = 90.0 - theta  # elevation angle [0.0, 90 deg]
     phi = np.rad2deg(np.arctan2(x, y))  # azimuth angle [-180.0, +180.0 deg]
     phi[phi < 0.0] += 360.0  # [0.0, 360.0 deg]
+
     return phi, theta, radius
 
 
@@ -159,7 +160,7 @@ ds.close()
 
 # Test plot
 colors = ["coral", "firebrick", "blueviolet", "royalblue"]
-plt.figure()
+fig = plt.figure(figsize=(6, 10))  # (width, height)
 ax = plt.axes()
 # for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0785) 
 #                     & (vlat >= 0.77) & (vlat <= 0.7735))[0]:
@@ -203,6 +204,8 @@ for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0773)
         ax.add_patch(poly)
         indices[1:] += 1
     # -------------------------------------------------------------------------
+fig.savefig("test_plot.png", dpi=250)
+plt.close()
 
 # Compute indices of triangle vertices (clon, clat)
 temp = ((cells_of_vertex != -2).sum(axis=0) - 2)
@@ -238,16 +241,15 @@ for ind_v in range(0, vlon.size):
         n += 1
     # -------------------------------------------------------------------------
 
-
-
 # Test plot
-plt.figure()
+fig = plt.figure(figsize=(10, 10))  # (width, height)
 plt.scatter(clon, clat, color="red", s=20)
 triangles = mpl.tri.Triangulation(clon, clat,
                                   vertex_of_triangle[:, :n].transpose())
 plt.triplot(triangles, color="black", linewidth=1.0)
-
-
+plt.axis((0.077, 0.077 + 0.002, 0.77, 0.77 + 0.002))
+fig.savefig("triangle_mesh.png", dpi=300)
+plt.close()
 
 # Load elevation of cell vertices
 # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0032m.nc"
@@ -264,7 +266,6 @@ refine_factor = 10
 # nhori = 240
 # refine_factor = 1
 svf_type = 3
-
 
 # -----------------------------------------------------------------------------
 # Very large and coarse grid -> check transformation of triangle surface
@@ -309,8 +310,8 @@ svf_type = 3
 # -----------------------------------------------------------------------------
 
 t_beg = time.perf_counter()
-horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
-                                       clon, clat, (vertex_of_cell + 1),
+horizon, skyview = horizon_svf_comp_py(clon, clat, hsurf,
+                                       (vertex_of_triangle + 1),
                                        nhori, refine_factor, svf_type)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
 

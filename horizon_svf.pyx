@@ -2,22 +2,17 @@ cimport numpy as np
 import numpy as np
 
 cdef extern from "horizon_svf_comp.h":
-    void horizon_svf_comp(double* vlon, double* vlat, float* topography_v, 
-                          int vertex, 
-                          double* clon, double* clat,
-                          np.npy_int32* vertex_of_cell,
-                          int cell,
-                          float* horizon, float* skyview, int nhori,
-                          int refine_factor,
-                          int svf_type)
+    void horizon_svf_comp(double* clon, double* clat, float* hsurf,
+                          int num_vertex,
+                          np.npy_int32* vertex_of_triangle, int num_triangle,
+                          float* horizon, float* skyview,
+                          int nhori, int refine_factor, int svf_type)
 
 # Interface for Python function
-def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
-                        np.ndarray[np.float64_t, ndim = 1] vlat,
-                        np.ndarray[np.float32_t, ndim = 1] topography_v,
-                        np.ndarray[np.float64_t, ndim = 1] clon,
+def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
                         np.ndarray[np.float64_t, ndim = 1] clat,
-                        np.ndarray[np.int32_t, ndim = 2] vertex_of_cell,
+                        np.ndarray[np.float32_t, ndim = 1] hsurf,
+                        np.ndarray[np.int32_t, ndim = 2] vertex_of_triangle,
                         int nhori,
                         int refine_factor,
                         int svf_type):
@@ -25,19 +20,15 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
 
     Parameters
     ----------
-    vlon : ndarray of double
-        Array with longitude of cell vertices (vertex) [rad]
-    vlat : ndarray of double
-        Array with latitude of cell vertices (vertex) [rad]
-    topography_v : ndarray of float
-        Array with elevation of cell vertices (vertex) [m]
     clon : ndarray of double
         Array with longitude of cell circumcenters (cell) [rad]
     clat : ndarray of double
         Array with latitude of cell circumcenters (cell) [rad]
-    vertex_of_cell : ndarray of int
-        Array with indices of cell vertices. Indices start with 1 according to
-        Fortran (3, cell)
+    hsurf : ndarray of float
+        Array with elevation of cell vertices (vertex) [m]
+    vertex_of_triangle : ndarray of int
+        Array with indices of triangle vertices. Indices start with 1
+        according to Fortran (3, cell)
     nhori : int
         Number of terrain horizon sampling directions
     refine_factor : int
@@ -47,7 +38,6 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
             0: Visible sky fraction; pure geometric skyview-factor
             1: SVF for horizontal surface; geometric scaled with sin(horizon)
             2: ?; geometric scaled with sin(horizon)**2
-            3: SVF for sloped surface according to HORAYZON
 
     Returns
     -------
@@ -57,19 +47,17 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
         Array (one-dimensional) with sky view factor [-]"""
 
     # Check consistency and validity of input arguments
-    if (vlon.size != vlat.size) or (vlat.size != topography_v.size):
-        raise ValueError("Inconsistent lengths of input arrays 'vlon',"
-                         "'vlat' and 'topography_v'")
-    if (clon.size != clat.size) or (clat.size != vertex_of_cell.shape[1]):
-        raise ValueError("Inconsistent lengths of input arrays 'clon',"
-                         "'clat', and 'vertex_of_cell'")
-    if vertex_of_cell.shape[0] != 3:
-        raise ValueError("First dimension of 'vertex_of_cell' must have "
-                            + "length 3")
+    if (clon.size != clat.size) or (clat.size != hsurf.size):
+        raise ValueError("Inconsistent lengths of input arrays 'clon', "
+                         "'clat' and 'hsurf'")
+    if vertex_of_triangle.shape[0] != 3:
+        raise ValueError("First dimension of 'vertex_of_triangle' must "
+            + "have length 3")
+    if ((vertex_of_triangle.min() < 1)
+        or (vertex_of_triangle.max() > clon.size)):
+        raise ValueError("Indices of 'vertex_of_triangle' out of range")
     if (nhori < 4) or (nhori > 1440):
         raise ValueError("'nhori' must be in the range [4, 1440]")
-    if (vertex_of_cell.min() < 1) or (vertex_of_cell.max() > vlon.size):
-        raise ValueError("Indices of 'vertex_of_cell' out of range")
     if (refine_factor < 1) or (refine_factor > 50):
         raise ValueError("'refine_factor' must be in the range [1, 50]")
     if (svf_type < 0) or (svf_type > 3):
@@ -80,16 +68,15 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] vlon,
         horizon = np.empty((nhori, clon.size), dtype=np.float32)
     cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] \
         skyview = np.empty(clon.size, dtype=np.float32)
-    
+
     # Ensure that passed arrays are contiguous in memory
-    vertex_of_cell = np.ascontiguousarray(vertex_of_cell)
+    vertex_of_triangle = np.ascontiguousarray(vertex_of_triangle)
 
     # Call C++ function and pass arguments
-    horizon_svf_comp(&vlon[0], &vlat[0], &topography_v[0], vlon.size,
-                     &clon[0], &clat[0], &vertex_of_cell[0, 0],
-                     clon.size, 
-                     &horizon[0, 0], &skyview[0], nhori, refine_factor, 
-                     svf_type)
+    horizon_svf_comp(&clon[0], &clat[0], &hsurf[0],
+                     clon.size,
+                     &vertex_of_triangle[0, 0], vertex_of_triangle.shape[1],
+                     &horizon[0, 0], &skyview[0],
+                     nhori, refine_factor, svf_type)
 
     return horizon, skyview
-
