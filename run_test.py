@@ -192,7 +192,7 @@ for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0773)
     # -------------------------------------------------------------------------
     plt.scatter(vlon[ind_v], vlat[ind_v], color="black", s=150, marker="*")
     if (cells_of_vertex[:, ind_v] != -2).sum() < 3:
-        # not enought vertices for a triangle...
+        # not enough vertices for a triangle...
         continue
     ind_sort = np.argsort(angles)
     indices = np.array([0, 1, 2])
@@ -219,7 +219,7 @@ n = 0
 for ind_v in range(0, vlon.size):
     # -------------------------------------------------------------------------
     if (cells_of_vertex[:, ind_v] != -2).sum() < 3:
-        # not enought vertices for a triangle...
+        # not enough vertices for a triangle...
         continue
     poly_vert_num = 0
     angles = np.empty(6, dtype=np.float32)
@@ -265,7 +265,7 @@ nhori = 24
 refine_factor = 10
 # nhori = 240
 # refine_factor = 1
-svf_type = 3
+svf_type = 2
 
 # -----------------------------------------------------------------------------
 # Very large and coarse grid -> check transformation of triangle surface

@@ -60,8 +60,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
         raise ValueError("'nhori' must be in the range [4, 1440]")
     if (refine_factor < 1) or (refine_factor > 50):
         raise ValueError("'refine_factor' must be in the range [1, 50]")
-    if (svf_type < 0) or (svf_type > 3):
-        raise ValueError("'svf_type' must be in the range [0, 3]")
+    if (svf_type < 0) or (svf_type > 2):
+        raise ValueError("'svf_type' must be in the range [0, 2]")
 
     # Allocate array for output
     cdef np.ndarray[np.float32_t, ndim = 2, mode = "c"] \
