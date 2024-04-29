@@ -15,14 +15,14 @@ from pyproj import Transformer
 mpl.style.use("classic")
 
 # Path to folders
-path_extpar = "/scratch/mch/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
-# root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
-# path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
-#                + "ICON_grids_EXTPAR/"
+# path_extpar = "/scratch/mch/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
+root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
+path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
+               + "ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
-sys.path.append("/scratch/mch/csteger/HORAYZON_extpar/")
-# sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
+# sys.path.append("/scratch/mch/csteger/HORAYZON_extpar/")
+sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
 from horizon_svf import horizon_svf_comp_py
 
 # -----------------------------------------------------------------------------
@@ -204,8 +204,8 @@ for ind_v in np.where((vlon >= 0.07) & (vlon <= 0.0773)
         ax.add_patch(poly)
         indices[1:] += 1
     # -------------------------------------------------------------------------
-fig.savefig("test_plot.png", dpi=250)
-plt.close()
+# fig.savefig("test_plot.png", dpi=250)
+# plt.close()
 
 # Compute indices of triangle vertices (clon, clat)
 temp = ((cells_of_vertex != -2).sum(axis=0) - 2)
@@ -248,8 +248,8 @@ triangles = mpl.tri.Triangulation(clon, clat,
                                   vertex_of_triangle[:, :n].transpose())
 plt.triplot(triangles, color="black", linewidth=1.0)
 plt.axis((0.077, 0.077 + 0.002, 0.77, 0.77 + 0.002))
-fig.savefig("triangle_mesh.png", dpi=300)
-plt.close()
+# fig.savefig("triangle_mesh.png", dpi=300)
+# plt.close()
 
 # Load elevation of cell vertices
 # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0032m.nc"
@@ -261,10 +261,10 @@ hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
 ds.close()
 
 # Further settings
-nhori = 24
-refine_factor = 10
-# nhori = 240
-# refine_factor = 1
+# nhori = 24
+# refine_factor = 10
+nhori = 240
+refine_factor = 1
 svf_type = 2
 
 # -----------------------------------------------------------------------------
@@ -336,23 +336,18 @@ phi, theta, radius = observer_perspective(clon, clat, hsurf,
                                           clon[ind], clat[ind], hsurf[ind])
 mask_d = (radius <= dist_search)
 plt.scatter(phi[mask_d], theta[mask_d], color="sienna", s=20, alpha=0.5)
-mask_c = mask_d & (theta > 3.0)
-# ---------------------------- Cell vertices ----------------------------------
-phi, theta, radius = observer_perspective(vlon, vlat, topography_v,
-                                          clon[ind], clat[ind], hsurf[ind])
-plt.scatter(phi, theta, color="black", s=20)
-for i in np.where(mask_c)[0]:
-    iv0, iv1, iv2 = vertex_of_cell[:, i]
-    phi_line = [phi[iv0], phi[iv1], phi[iv2], phi[iv0]]
-    theta_line = [theta[iv0], theta[iv1], theta[iv2], theta[iv0]]
-    for j in range(3):
-        if np.abs(np.diff(phi_line[j:(j + 2)])) < 180.0:
-            plt.plot(phi_line[j:(j + 2)], theta_line[j:(j + 2)],
-                     color="grey", lw=0.5)
+for i in range(vertex_of_triangle.shape[1]):
+# for i in range(500_000):
+    ind_circ = np.append(vertex_of_triangle[:, i], vertex_of_triangle[:, i][0])
+    if radius[ind_circ[:-1]].mean() <= dist_search:
+        for j in range(3):
+            if np.abs(np.diff(phi[ind_circ][j:(j + 2)])) < 180.0:
+                plt.plot(phi[ind_circ][j:(j + 2)], theta[ind_circ][j:(j + 2)],
+                         color="grey", lw=0.5)
 # -----------------------------------------------------------------------------
 # plt.plot(azim_old, horizon_old[:, ind], label="old", color="red", lw=2.5)
 plt.plot(azim, horizon[:, ind], label="Ray tracing", color="royalblue", lw=2.5)
-plt.axis([0.0, 360.0, 0.0, 50.0])
+plt.axis((0.0, 360.0, 0.0, 50.0))
 plt.legend(fontsize=12, frameon=False)
 plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
@@ -360,7 +355,7 @@ plt.ylabel("Elevation angle [deg]")
 # Colormap
 values = skyview
 cmap = plt.get_cmap("YlGnBu_r")
-# values = horizon[180, :]  # 0, 12
+# values = horizon[0, :]  # 0, 12
 # cmap = plt.get_cmap("afmhot_r")
 levels = MaxNLocator(nbins=20, steps=[1, 2, 5, 10], symmetric=False) \
          .tick_values(np.percentile(values, 2), np.percentile(values, 98))
@@ -405,11 +400,6 @@ triangles = mpl.tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
                                   vertex_of_cell.transpose())
 plt.tripcolor(triangles, hsurf, cmap=cmap, norm=norm,
               edgecolors="black", linewidth=0.0)
-# -----------------------------------------------------------------------------
-plt.scatter(np.rad2deg(vlon[ind_vertices_outer]),
-            np.rad2deg(vlat[ind_vertices_outer]),
-            c=topography_v[ind_vertices_outer], cmap=cmap, norm=norm, s=20)
-# -----------------------------------------------------------------------------
 ax.add_feature(feature.BORDERS.with_scale("10m"),
                linestyle="-", linewidth=0.6)
 ax.add_feature(feature.COASTLINE.with_scale("10m"),

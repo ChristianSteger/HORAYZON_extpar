@@ -374,7 +374,7 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
     ray.tfar = dist_search;
 
     // Intersect ray with scene - function that checks
-    // wheter there is a hit with the scene
+    // whether there is a hit with the scene
     rtcOccluded1(scene, &context, &ray);
 
     return (ray.tfar < 0.0);
@@ -389,7 +389,7 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
 //-----------------------------------------------------------------------------
 
 void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
-    double hori_acc, float dist_search, double elev_ang_min,
+    double hori_acc, float dist_search, double elev_ang_thresh,
     RTCScene scene, size_t &num_rays,
     double* horizon_cell, int horizon_cell_len,
     double azim_shift,
@@ -398,17 +398,8 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
     double elev_sin_1ha, double elev_cos_1ha,
     double elev_sin_2ha, double elev_cos_2ha){
 
-    // ------------------------------------------------------------------------
-    // First azimuth direction -> binary search
-    // ------------------------------------------------------------------------
-
-    // Lower/upper limit of 'binary search sector'
-    double lim_low = -(M_PI / 2.0);  // [rad] (-90.0 deg)
-    double lim_up = +(M_PI / 2.0);  // [rad] (+90.0 deg)
-
-    // Initial elevation angle
-    double elev_ang = (lim_low + lim_up) / 2.0;
-    double ang_rot = 0.0;
+    // Find horizon with incrementally in-/decreasing sampling elevation,
+    // guess horizon from previous azimuth direction
 
     // Initial ray direction
     geom_vector ray_dir;
@@ -421,72 +412,26 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
     ray_dir = vector_rotation(ray_dir, sphere_normal, sin(-azim_shift),
         cos(-azim_shift));
 
-    // Rotation axis (-> unit vector because cross product of two
-    // perpendicular unit vectors)
-    geom_vector rot_axis = cross_product(ray_dir, sphere_normal);
-
-    // Binary search
-    bool hit;
-    while ((lim_up - lim_low) > (2.0 * hori_acc)){
-
-        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
-            ray_org_z, (float)ray_dir.x, (float)ray_dir.y, (float)ray_dir.z,
-            dist_search);
-        num_rays += 1;
-
-        // Determine new elevation angle for ray sampling
-        if (hit) {
-            lim_low = elev_ang;
-        } else {
-            lim_up = elev_ang;
-        }
-        ang_rot = ((lim_low + lim_up) / 2.0) - elev_ang;
-        elev_ang = (lim_low + lim_up) / 2.0;
-
-        // Change elevation angle of ray direction
-        ray_dir = vector_rotation(ray_dir, rot_axis, sin(ang_rot),
-            cos(ang_rot));
-
-  	}
-
-    horizon_cell[0] = elev_ang;
-
-    // ------------------------------------------------------------------------
-    // Remaining azimuth directions -> guess horizon from previous azimuth
-    // direction
-    // ------------------------------------------------------------------------
-
-    // Lower ray direction vector by 'hori_acc'
-    ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_1ha,
-        elev_cos_1ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
-    elev_ang -=hori_acc;
-
-    for (int i = 1; i < horizon_cell_len; i++){
-
-        // Azimuthal rotation of ray direction (clockwise; first to east)
-        ray_dir = vector_rotation(ray_dir, sphere_normal, -azim_sin,
-            azim_cos);  // sin(-x) == -sin(x), cos(x) == cos(-x)
+    // Sample along azimuth
+    double elev_ang = 0.0;
+    for (int i = 0; i < horizon_cell_len; i++){
 
         // Rotation axis (-> not a unit vector because vectors are not
         // necessarily perpendicular)
-        rot_axis = cross_product(ray_dir, sphere_normal);
+        geom_vector rot_axis = cross_product(ray_dir, sphere_normal);
         unit_vector(rot_axis);
 
-        // Find horizon with discrete ray sampling
-        hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
+        // Sample with initial elevation angle
+        bool hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
             ray_org_z, (float)ray_dir.x, (float)ray_dir.y, (float)ray_dir.z,
             dist_search);
         num_rays += 1;
 
-        if ((!hit) && (elev_ang < elev_ang_min)) {
-            elev_ang = elev_ang_min;
-        }
-
         if (hit) { // terrain hit -> increase elevation angle
-            while (hit) {
+            while (hit){
+                elev_ang += (2.0 * hori_acc);
                 ray_dir = vector_rotation(ray_dir, rot_axis, elev_sin_2ha,
                     elev_cos_2ha);
-                elev_ang += (2.0 * hori_acc);
                 hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
                 ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
                 (float)ray_dir.z, dist_search);
@@ -494,10 +439,10 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
             }
             horizon_cell[i] = elev_ang - hori_acc;
         } else { // terrain not hit -> decrease elevation angle
-            while (!hit) {
+            while ((!hit) && (elev_ang > elev_ang_thresh)){
+                elev_ang -= (2.0 * hori_acc);
                 ray_dir = vector_rotation(ray_dir, rot_axis, -elev_sin_2ha,
                     elev_cos_2ha);  // sin(-x) == -sin(x), cos(x) == cos(-x)
-                elev_ang -= (2.0 * hori_acc);
                 hit = castRay_occluded1(scene, ray_org_x, ray_org_y,
                 ray_org_z, (float)ray_dir.x, (float)ray_dir.y,
                 (float)ray_dir.z, dist_search);
@@ -505,6 +450,11 @@ void ray_guess_const(float ray_org_x, float ray_org_y, float ray_org_z,
             }
             horizon_cell[i] = elev_ang + hori_acc;
         }
+
+        // Azimuthal rotation of ray direction (clockwise; first to east)
+        ray_dir = vector_rotation(ray_dir, sphere_normal, -azim_sin,
+            azim_cos);  // sin(-x) == -sin(x), cos(x) == cos(-x)
+
     }
 
 }
@@ -580,9 +530,12 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     double ray_org_elev = 0.1;  // elevation offset [m] (0.1, 0.2, 0.5)
     float dist_search = 50000;  // horizon search distance [m]
     double hori_acc = deg2rad(0.25);  // horizon accuracy [deg]
-    double elev_ang_min = deg2rad(-89.0);  // minimal elevation angle for
-    // 'void sampling directions' at edge of mesh [rad]
-    // -> necessary requirement: (90.0 + elev_ang_min) > hori_acc
+    double elev_ang_thresh = deg2rad(-85.0);
+    // threshold angle for sampling in negative elevation direction [rad]
+    // -> relevant for 'void sampling directions' at edge of mesh
+    // -> necessary requirement: (elev_ang_thresh - (2.0 * hori_acc)) > -90.0
+    // -> horizon values for the threshold case are:
+    //    elev_ang_thresh +/- hori_acc
 
     // Constants
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
@@ -636,17 +589,17 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
     ecef2enu_vector(north_directions, lon_orig, lat_orig);
 
-    // // ------------------------------------------------------------------------
-    // // Building of BVH
-    // // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Building of BVH
+    // ------------------------------------------------------------------------
 
     RTCDevice device = initializeDevice();
     RTCScene scene = initializeScene(device, vertex_of_triangle, num_triangle,
         circumcenters);
 
-    // // ------------------------------------------------------------------------
-    // // Terrain horizon and sky view factor computation
-    // // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // Terrain horizon and sky view factor computation
+    // ------------------------------------------------------------------------
 
     // Evaluated trigonometric functions for rotation along azimuth/elevation
     // angle
@@ -688,12 +641,12 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     auto start_ray = std::chrono::high_resolution_clock::now();
     size_t num_rays = 0;
 
-    // num_rays += tbb::parallel_reduce(
-    // tbb::blocked_range<size_t>(0, num_vertex), 0.0,
-    // [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
+    num_rays += tbb::parallel_reduce(
+    tbb::blocked_range<size_t>(0, num_vertex), 0.0,
+    [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
-    for(size_t i = 0; i < (size_t)num_vertex; i++){ // serial
-    // for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
+    // for (size_t i = 0; i < (size_t)num_vertex; i++){ // serial
+    for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
         // Elevate origin for ray tracing by 'safety margin'
         float ray_org_x = (float)(circumcenters[i].x
@@ -705,57 +658,44 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
 
         double* horizon_cell = new double[horizon_cell_len];  // [rad]
 
-    //     // Compute terrain horizon
-    //     ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
-    //         hori_acc, dist_search, elev_ang_min
-    //         scene, num_rays,
-    //         horizon_cell, horizon_cell_len,
-    //         azim_shift,
-    //         sphere_normals[i], north_directions[i],
-    //         azim_sin, azim_cos,
-    //         elev_sin_1ha, elev_cos_1ha,
-    //         elev_sin_2ha, elev_cos_2ha);
+        // Compute terrain horizon
+        ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
+            hori_acc, dist_search, elev_ang_thresh,
+            scene, num_rays,
+            horizon_cell, horizon_cell_len,
+            azim_shift,
+            sphere_normals[i], north_directions[i],
+            azim_sin, azim_cos,
+            elev_sin_1ha, elev_cos_1ha,
+            elev_sin_2ha, elev_cos_2ha);
 
-    //     // Clip lower limit of terrain horizon values to 0.0
-    //     for(int j = 0; j < horizon_cell_len; j++){
-    //         if (horizon_cell[j] < 0.0){
-    //             horizon_cell[j] = 0.0;
-    //         }
-    //     }
+        // Clip lower limit of terrain horizon values to 0.0
+        for(int j = 0; j < horizon_cell_len; j++){
+            if (horizon_cell[j] < 0.0){
+                horizon_cell[j] = 0.0;
+            }
+        }
 
-    //     // Compute mean horizon for sector and save in 'horizon' buffer
-    //     for(int j = 0; j < azim_num; j++){
-    //         double horizon_mean = 0.0;
-    //         for(int k = 0; k < refine_factor; k++){
-    //             horizon_mean += horizon_cell[(j * refine_factor) + k];
-    //         }
-    //         horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
-    //             / (double)refine_factor);
-    //     }
+        // Compute mean horizon for sector and save in 'horizon' buffer
+        for(int j = 0; j < azim_num; j++){
+            double horizon_mean = 0.0;
+            for(int k = 0; k < refine_factor; k++){
+                horizon_mean += horizon_cell[(j * refine_factor) + k];
+            }
+            horizon[(j * num_vertex) + i] = (float)(rad2deg(horizon_mean)
+                / (double)refine_factor);
+        }
 
-    //     // Transform triangle surface normal from global to local ENU
-    //     // coordinates
-    //     geom_vector east_direction = cross_product(north_directions[i],
-    //         sphere_normals[i]);
-    //     double rotation_matrix[3][3] = {
-    //         {east_direction.x, east_direction.y, east_direction.z},
-    //         {north_directions[i].x, north_directions[i].y,
-    //         north_directions[i].z},
-    //         {sphere_normals[i].x, sphere_normals[i].y, sphere_normals[i].z}
-    //         };
-    //     geom_vector triangle_normal_local = vector_matrix_multiplication(
-    //         triangle_normal, rotation_matrix);
+        // Compute sky view factor and save in 'skyview' buffer
+        skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
+            azim_shift);
 
-    //     // Compute sky view factor and save in 'skyview' buffer
-    //     skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
-    //         triangle_normal_local, azim_shift);
-
-    //     delete[] horizon_cell;
+        delete[] horizon_cell;
 
     }
 
-    // return num_rays;  // parallel
-    // }, std::plus<size_t>());  // parallel
+    return num_rays;  // parallel
+    }, std::plus<size_t>());  // parallel
 
     auto end_ray = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> time_ray = end_ray - start_ray;

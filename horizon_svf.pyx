@@ -21,14 +21,14 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
     Parameters
     ----------
     clon : ndarray of double
-        Array with longitude of cell circumcenters (cell) [rad]
+        Array with longitude of cell circumcenters (num_vertex) [rad]
     clat : ndarray of double
-        Array with latitude of cell circumcenters (cell) [rad]
+        Array with latitude of cell circumcenters (num_vertex) [rad]
     hsurf : ndarray of float
-        Array with elevation of cell vertices (vertex) [m]
+        Array with elevation of triangle vertices (num_vertex) [m]
     vertex_of_triangle : ndarray of int
         Array with indices of triangle vertices. Indices start with 1
-        according to Fortran (3, cell)
+        according to Fortran (3, num_triangle)
     nhori : int
         Number of terrain horizon sampling directions
     refine_factor : int
