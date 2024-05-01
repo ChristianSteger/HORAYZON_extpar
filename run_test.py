@@ -219,7 +219,7 @@ n = 0
 for ind_v in range(0, vlon.size):
     # -------------------------------------------------------------------------
     if (cells_of_vertex[:, ind_v] != -2).sum() < 3:
-        # not enough vertices for a triangle...
+        # not enough vertices for a triangle ...
         continue
     poly_vert_num = 0
     angles = np.empty(6, dtype=np.float32)
@@ -240,6 +240,8 @@ for ind_v in range(0, vlon.size):
         indices[1:] += 1
         n += 1
     # -------------------------------------------------------------------------
+# vertex_of_triangle_new = vertex_of_triangle.reshape((1996094, 3),
+#                                                     order="C")
 
 # Test plot
 fig = plt.figure(figsize=(10, 10))  # (width, height)
@@ -311,7 +313,9 @@ svf_type = 2
 
 t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(clon, clat, hsurf,
+                                       vlon, vlat,
                                        (vertex_of_triangle + 1),
+                                       (cells_of_vertex + 1),
                                        nhori, refine_factor, svf_type)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
 

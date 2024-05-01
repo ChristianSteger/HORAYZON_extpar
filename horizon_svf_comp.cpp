@@ -100,6 +100,37 @@ inline geom_vector vector_matrix_multiplication(geom_vector v_in,
     return v_out;
 }
 
+// ----------------------------------------------------------------------------
+// Miscellaneous
+// ----------------------------------------------------------------------------
+
+struct element {
+    int index;
+    double value;
+};
+
+int compare(const void * a, const void * b)
+{
+    return ((*(struct element*)a).value - (*(struct element*)b).value);
+}
+
+// Compute indices that would sort an array with 6 elements
+void argsort(double* values, int* indices_sort){
+
+  struct element values_indices[6];
+  for(int i = 0; i < 6; i++){
+      values_indices[i].index = i;
+      values_indices[i].value = values[i];
+  }
+
+  qsort (values_indices, 6, sizeof(struct element), compare);
+
+  for(int i = 0; i < 6; i++){
+      indices_sort[i] = values_indices[i].index;
+  }
+
+}
+
 //#############################################################################
 // Coordinate transformation and north vector
 //#############################################################################
@@ -521,10 +552,14 @@ double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
 //#############################################################################
 
 void horizon_svf_comp(double* clon, double* clat, float* hsurf,
+    int num_cell,
+    double* vlon, double* vlat,
     int num_vertex,
-    int* vertex_of_triangle, int num_triangle,
+    int* vertex_of_triangle, int num_triangle_py,  // temporary
+    int* cells_of_vertex,
     float* horizon, float* skyview,
-    int azim_num, int refine_factor, int svf_type){
+    int azim_num,
+    int refine_factor, int svf_type){
 
     // Settings
     double ray_org_elev = 0.1;  // elevation offset [m] (0.1, 0.2, 0.5)
@@ -548,20 +583,85 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     std::cout << "Horizon and SVF computation with Intel Embree" << endl;
     std::cout << "---------------------------------------------" << endl;
 
-    // Adjust vertex indices (Fortran -> C; start with index 0)
-    for (int i = 0; i < (num_triangle * 3); i++){
+    // Adjust indices (Fortran -> C; start with index 0)
+    for (int i = 0; i < (num_triangle_py * 3); i++){
         vertex_of_triangle[i] -= 1;
     }
+    for (int i = 0; i < (num_vertex * 6); i++){
+        cells_of_vertex[i] -= 1;  // -> 'empty values' are set to -2
+    }
+
+    // Compute number of triangles in mesh with ICON circumcenters as triangle
+    // vertices
+    int num_triangle = 0;
+    int  num_polygon_vertices;
+    for (int i = 0; i < num_vertex; i++){
+        num_polygon_vertices = 0;
+        for (int j = 0; j < 6; j++){
+            if (cells_of_vertex[(num_vertex * j + i)] != -2) {
+                num_polygon_vertices++;
+            }
+        }
+        num_triangle += std::max(0, (num_polygon_vertices - 2));
+    }
+    std::cout << "Number of triangles: " << num_triangle << endl;
+    std::cout << "------------- TEST 0.1 -------------" << endl;
+
+    // Construct triangle mesh
+    // allocate memory for 'vertex_of_triangle' later ---------------------------------------
+    double* angles = new double[6];
+    int* indices_sort = new int[6];
+    int ind_cell;
+    for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
+        num_polygon_vertices = 0;
+        for (int j = 0; j < 6; j++){
+            if (cells_of_vertex[(num_vertex * j + ind_vertex)] != -2) {
+                num_polygon_vertices++;
+            }
+        }
+        if (num_polygon_vertices < 3) {
+            // polygon has an insufficent number of vertices to split into
+            // at least one triangle
+            continue;
+        }
+        num_polygon_vertices = 0;
+        for (int j = 0; j < 6; j++){
+            ind_cell = cells_of_vertex[(num_vertex * j + ind_vertex)];
+            if (ind_cell != -2) {
+                double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
+                                     clat[ind_cell] - vlat[ind_vertex]);
+                if (angle < 0.0) {
+                    angle += 2.0 * M_PI;
+                }
+                angles[num_polygon_vertices] = angle;
+                num_polygon_vertices++;
+            } else {
+                angles[j] = 999.9;
+            }
+        }
+        argsort(angles, indices_sort);
+        // for (int j = 0; j < (num_polygon_vertices - 2); j++){
+        //     for (int k = 0; k < 3; k++){
+        //         int temp = cells_of_vertex
+        //     }
+        // }
+
+    }
+    delete[] angles;
+    delete[] indices_sort;
+
+
+
 
     std::cout << "Convert spherical to ECEF coordinates" << endl;
 
     // Triangle vertices (ECEF)
     vector<geom_point> circumcenters = lonlat2ecef(clon, clat, hsurf,
-        num_vertex, rad_earth);
+        num_cell, rad_earth);
 
     // // Sphere normals for circumcenters (ECEF)
-    vector<geom_vector> sphere_normals(num_vertex);
-    for (int i = 0; i < num_vertex; i++){
+    vector<geom_vector> sphere_normals(num_cell);
+    for (int i = 0; i < num_cell; i++){
         sphere_normals[i].x = circumcenters[i].x / rad_earth;
         sphere_normals[i].y = circumcenters[i].y / rad_earth;
         sphere_normals[i].z = circumcenters[i].z / rad_earth;
@@ -574,12 +674,12 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     // Origin of ENU coordinate system
     double lon_orig = 0.0;
     double lat_orig = 0.0;
-    for (int i = 0; i < num_vertex; i++){
+    for (int i = 0; i < num_cell; i++){
         lon_orig += clon[i];
         lat_orig += clat[i];
     }
-    lon_orig /= num_vertex;
-    lat_orig /= num_vertex;
+    lon_orig /= num_cell;
+    lat_orig /= num_cell;
 
     // In-place transformation from ECEF to ENU
     std::cout << "Convert ECEF to ENU coordinates" << endl;
@@ -642,10 +742,10 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     size_t num_rays = 0;
 
     num_rays += tbb::parallel_reduce(
-    tbb::blocked_range<size_t>(0, num_vertex), 0.0,
+    tbb::blocked_range<size_t>(0, num_cell), 0.0,
     [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
-    // for (size_t i = 0; i < (size_t)num_vertex; i++){ // serial
+    // for (size_t i = 0; i < (size_t)num_cell; i++){ // serial
     for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
         // Elevate origin for ray tracing by 'safety margin'
@@ -682,7 +782,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
             for(int k = 0; k < refine_factor; k++){
                 horizon_mean += horizon_cell[(j * refine_factor) + k];
             }
-            horizon[(j * num_vertex) + i] = (float)(rad2deg(horizon_mean)
+            horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
                 / (double)refine_factor);
         }
 
@@ -703,7 +803,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
 
     // Print number of rays needed for location and azimuth direction
     cout << "Number of rays shot: " << num_rays << endl;
-    double ratio = (double)num_rays / (double)(num_vertex * azim_num);
+    double ratio = (double)num_rays / (double)(num_cell * azim_num);
     printf("Average number of rays per cell and azimuth sector: %.2f \n",
         ratio);
 
