@@ -104,30 +104,19 @@ inline geom_vector vector_matrix_multiplication(geom_vector v_in,
 // Miscellaneous
 // ----------------------------------------------------------------------------
 
-struct element {
-    int index;
-    double value;
-};
+// Returns indices that would sort an array in ascending order
+vector<int> sort_index(vector<double>& values){
 
-int compare(const void * a, const void * b)
-{
-    return ((*(struct element*)a).value - (*(struct element*)b).value);
-}
+	vector<int> index(values.size());
+     for (int i = 0 ; i < index.size() ; i++) {
+        index[i] = i;
+    }
 
-// Compute indices that would sort an array with 6 elements
-void argsort(double* values, int* indices_sort){
+    sort(index.begin(), index.end(), [&](const int& a, const int& b){
+        return (values[a] < values[b]);
+    });
 
-  struct element values_indices[6];
-  for(int i = 0; i < 6; i++){
-      values_indices[i].index = i;
-      values_indices[i].value = values[i];
-  }
-
-  qsort (values_indices, 6, sizeof(struct element), compare);
-
-  for(int i = 0; i < 6; i++){
-      indices_sort[i] = values_indices[i].index;
-  }
+	return index;
 
 }
 
@@ -591,65 +580,59 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
         cells_of_vertex[i] -= 1;  // -> 'empty values' are set to -2
     }
 
-    // Compute number of triangles in mesh with ICON circumcenters as triangle
-    // vertices
-    int num_triangle = 0;
-    int  num_polygon_vertices;
-    for (int i = 0; i < num_vertex; i++){
-        num_polygon_vertices = 0;
-        for (int j = 0; j < 6; j++){
-            if (cells_of_vertex[(num_vertex * j + i)] != -2) {
-                num_polygon_vertices++;
-            }
-        }
-        num_triangle += std::max(0, (num_polygon_vertices - 2));
-    }
-    std::cout << "Number of triangles: " << num_triangle << endl;
-    std::cout << "------------- TEST 0.1 -------------" << endl;
-
-    // Construct triangle mesh
-    // allocate memory for 'vertex_of_triangle' later ---------------------------------------
-    double* angles = new double[6];
-    int* indices_sort = new int[6];
+    // Construct triangle mesh (-> use ICON circumcenters as triangle vertices)
+    auto start_mesh = std::chrono::high_resolution_clock::now();
+    vector <int> vertex_of_triangle_new;
     int ind_cell;
+    int ind_vertex;
+    int ind_1, ind_2;
+    int ind_cov;
     for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
-        num_polygon_vertices = 0;
+        vector <double> angles;
+        angles.reserve(6);
         for (int j = 0; j < 6; j++){
-            if (cells_of_vertex[(num_vertex * j + ind_vertex)] != -2) {
-                num_polygon_vertices++;
-            }
-        }
-        if (num_polygon_vertices < 3) {
-            // polygon has an insufficent number of vertices to split into
-            // at least one triangle
-            continue;
-        }
-        num_polygon_vertices = 0;
-        for (int j = 0; j < 6; j++){
-            ind_cell = cells_of_vertex[(num_vertex * j + ind_vertex)];
+            ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
+            // ensure that 2-dimensional array 'cells_of_vertex' correctly
+            // passed as soon as integrated in Fortran code ------------------- check later!
             if (ind_cell != -2) {
                 double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
                                      clat[ind_cell] - vlat[ind_vertex]);
                 if (angle < 0.0) {
                     angle += 2.0 * M_PI;
                 }
-                angles[num_polygon_vertices] = angle;
-                num_polygon_vertices++;
-            } else {
-                angles[j] = 999.9;
+                angles.push_back(angle);
             }
         }
-        argsort(angles, indices_sort);
-        // for (int j = 0; j < (num_polygon_vertices - 2); j++){
-        //     for (int k = 0; k < 3; k++){
-        //         int temp = cells_of_vertex
-        //     }
-        // }
+        if (angles.size() >= 3){
+            // at least 3 vertices are needed to create (multiple) triangles
+            // from the polygon
+            vector<int> ind_sort = sort_index(angles);
+            ind_1 = 1;
+            ind_2 = 2;
+            for (int j = 0; j < (angles.size() - 2); j++){
+                ind_cov = num_vertex * ind_sort[0] + ind_vertex;
+                vertex_of_triangle_new.push_back(cells_of_vertex[ind_cov]);
+                ind_cov = num_vertex * ind_sort[ind_1] + ind_vertex;
+                vertex_of_triangle_new.push_back(cells_of_vertex[ind_cov]);
+                ind_1 ++;
+                ind_cov = num_vertex * ind_sort[ind_2] + ind_vertex;
+                vertex_of_triangle_new.push_back( cells_of_vertex[ind_cov]);
+                ind_2 ++;
+                // add indices of triangle's vertices in clockwise order
+            }
+        }
 
     }
-    delete[] angles;
-    delete[] indices_sort;
-
+    // -> indices in 'vertex_of_triangle' and 'vertex_of_triangle_new' are differently arranged !!!!!!!!!!!!!!!
+    // -> grouped in 'vertex_of_triangle_new' and 'far apart' in 'vertex_of_triangle'.
+    // -> modify 'initializeScene()' accordingly (respectively pass buffer directly from vector -> vector.data())
+    int num_triangle = vertex_of_triangle_new.size() / 3;
+    std::cout << "Number of triangles: " << num_triangle << endl;  // ----------- temporary
+    std::cout << "------------- TEST 0.6 -------------" << endl;  // ------------ temporary
+    auto end_mesh = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_mesh = end_mesh - start_mesh;
+    std::cout << "Triangle mesh building: " << time_mesh.count() << " s"
+        << endl;
 
 
 
@@ -741,61 +724,61 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     auto start_ray = std::chrono::high_resolution_clock::now();
     size_t num_rays = 0;
 
-    num_rays += tbb::parallel_reduce(
-    tbb::blocked_range<size_t>(0, num_cell), 0.0,
-    [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
+    // num_rays += tbb::parallel_reduce(
+    // tbb::blocked_range<size_t>(0, num_cell), 0.0,
+    // [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
-    // for (size_t i = 0; i < (size_t)num_cell; i++){ // serial
-    for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
+    // // for (size_t i = 0; i < (size_t)num_cell; i++){ // serial
+    // for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
-        // Elevate origin for ray tracing by 'safety margin'
-        float ray_org_x = (float)(circumcenters[i].x
-            + sphere_normals[i].x * ray_org_elev);
-        float ray_org_y = (float)(circumcenters[i].y
-            + sphere_normals[i].y * ray_org_elev);
-        float ray_org_z = (float)(circumcenters[i].z
-            + sphere_normals[i].z * ray_org_elev);
+    //     // Elevate origin for ray tracing by 'safety margin'
+    //     float ray_org_x = (float)(circumcenters[i].x
+    //         + sphere_normals[i].x * ray_org_elev);
+    //     float ray_org_y = (float)(circumcenters[i].y
+    //         + sphere_normals[i].y * ray_org_elev);
+    //     float ray_org_z = (float)(circumcenters[i].z
+    //         + sphere_normals[i].z * ray_org_elev);
 
-        double* horizon_cell = new double[horizon_cell_len];  // [rad]
+    //     double* horizon_cell = new double[horizon_cell_len];  // [rad]
 
-        // Compute terrain horizon
-        ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
-            hori_acc, dist_search, elev_ang_thresh,
-            scene, num_rays,
-            horizon_cell, horizon_cell_len,
-            azim_shift,
-            sphere_normals[i], north_directions[i],
-            azim_sin, azim_cos,
-            elev_sin_1ha, elev_cos_1ha,
-            elev_sin_2ha, elev_cos_2ha);
+    //     // Compute terrain horizon
+    //     ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
+    //         hori_acc, dist_search, elev_ang_thresh,
+    //         scene, num_rays,
+    //         horizon_cell, horizon_cell_len,
+    //         azim_shift,
+    //         sphere_normals[i], north_directions[i],
+    //         azim_sin, azim_cos,
+    //         elev_sin_1ha, elev_cos_1ha,
+    //         elev_sin_2ha, elev_cos_2ha);
 
-        // Clip lower limit of terrain horizon values to 0.0
-        for(int j = 0; j < horizon_cell_len; j++){
-            if (horizon_cell[j] < 0.0){
-                horizon_cell[j] = 0.0;
-            }
-        }
+    //     // Clip lower limit of terrain horizon values to 0.0
+    //     for(int j = 0; j < horizon_cell_len; j++){
+    //         if (horizon_cell[j] < 0.0){
+    //             horizon_cell[j] = 0.0;
+    //         }
+    //     }
 
-        // Compute mean horizon for sector and save in 'horizon' buffer
-        for(int j = 0; j < azim_num; j++){
-            double horizon_mean = 0.0;
-            for(int k = 0; k < refine_factor; k++){
-                horizon_mean += horizon_cell[(j * refine_factor) + k];
-            }
-            horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
-                / (double)refine_factor);
-        }
+    //     // Compute mean horizon for sector and save in 'horizon' buffer
+    //     for(int j = 0; j < azim_num; j++){
+    //         double horizon_mean = 0.0;
+    //         for(int k = 0; k < refine_factor; k++){
+    //             horizon_mean += horizon_cell[(j * refine_factor) + k];
+    //         }
+    //         horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
+    //             / (double)refine_factor);
+    //     }
 
-        // Compute sky view factor and save in 'skyview' buffer
-        skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
-            azim_shift);
+    //     // Compute sky view factor and save in 'skyview' buffer
+    //     skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
+    //         azim_shift);
 
-        delete[] horizon_cell;
+    //     delete[] horizon_cell;
 
-    }
+    // }
 
-    return num_rays;  // parallel
-    }, std::plus<size_t>());  // parallel
+    // return num_rays;  // parallel
+    // }, std::plus<size_t>());  // parallel
 
     auto end_ray = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> time_ray = end_ray - start_ray;

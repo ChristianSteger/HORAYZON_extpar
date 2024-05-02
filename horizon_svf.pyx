@@ -3,7 +3,7 @@ import numpy as np
 
 cdef extern from "horizon_svf_comp.h":
     void horizon_svf_comp(double* clon, double* clat, float* hsurf,
-                          int num_vertex,
+                          int num_cell,
                           double* vlon, double* vlat,
                           int num_vertex,
                           np.npy_int32* vertex_of_triangle, int num_triangle,  # temporary
