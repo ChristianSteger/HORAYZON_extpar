@@ -6,11 +6,10 @@ cdef extern from "horizon_svf_comp.h":
                           int num_cell,
                           double* vlon, double* vlat,
                           int num_vertex,
-                          np.npy_int32* vertex_of_triangle, int num_triangle,  # temporary
                           np.npy_int32* cells_of_vertex,
                           float* horizon, float* skyview,
                           int nhori,
-                          int refine_factor, int svf_type)
+                          int refine_factor, int svf_type, int grid_type)
 
 # Interface for Python function
 def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
@@ -18,11 +17,11 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
                         np.ndarray[np.float32_t, ndim = 1] hsurf,
                         np.ndarray[np.float64_t, ndim = 1] vlon,
                         np.ndarray[np.float64_t, ndim = 1] vlat,
-                        np.ndarray[np.int32_t, ndim = 2] vertex_of_triangle,  # temporary
                         np.ndarray[np.int32_t, ndim = 2] cells_of_vertex,
                         int nhori,
                         int refine_factor,
-                        int svf_type):
+                        int svf_type,
+                        int grid_type):
     """Compute the terrain horizon and sky view factor.
 
     Parameters
@@ -42,11 +41,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
     vlat : ndarray of double
         Array with latitude of ICON cell vertices
         (number of ICON vertices) [rad]
-    vertex_of_triangle : ndarray of int
-        Array with indices of triangle vertices. Indices start with 1
-        according to Fortran (3, number of triangles)
     cells_of_vertex : ndarray of int
-        Array with indices of ICON cells ajacent to ICON vertices. Indices
+        Array with indices of ICON cells adjacent to ICON vertices. Indices
         start with 1 according to Fortran (6, number of ICON vertices)
     nhori : int
         Number of terrain horizon sampling directions
@@ -57,6 +53,12 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
             0: Visible sky fraction; pure geometric skyview-factor
             1: SVF for horizontal surface; geometric scaled with sin(horizon)
             2: ?; geometric scaled with sin(horizon)**2
+    grid_type : int
+        Triangle mesh construction method
+            0: "Building triangle mesh solely from ICON grid circumcenters
+               (-> ambiguous triangulation)
+            1: Building triangle mesh from ICON grid circumcenters and vertices
+               (-> unique triangulation)
 
     Returns
     -------
@@ -72,14 +74,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
     if (vlon.size != vlat.size):
         raise ValueError("Inconsistent lengths of input arrays 'vlon' and "
                          "'vlat'")
-    if vertex_of_triangle.shape[0] != 3:
-        raise ValueError("First dimension of 'vertex_of_triangle' must "
-            + "have length 3")
-    if ((vertex_of_triangle.min() < 1)
-        or (vertex_of_triangle.max() > clon.size)):
-        raise ValueError("Indices of 'vertex_of_triangle' out of range")
     if cells_of_vertex.shape[0] != 6:
-        raise ValueError("First dimension of 'vertex_of_triangle' must "
+        raise ValueError("First dimension of 'cells_of_vertex' must "
             + "have length 6")
     if not np.all((cells_of_vertex >= 1) & (cells_of_vertex <= clon.size)
         | (cells_of_vertex == -1)):
@@ -98,17 +94,16 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
         skyview = np.empty(clon.size, dtype=np.float32)
 
     # Ensure that passed arrays are contiguous in memory
-    vertex_of_triangle = np.ascontiguousarray(vertex_of_triangle)
+    cells_of_vertex = np.ascontiguousarray(cells_of_vertex)
 
     # Call C++ function and pass arguments
     horizon_svf_comp(&clon[0], &clat[0], &hsurf[0],
                      clon.size,
                      &vlon[0], &vlat[0],
                      vlon.size,
-                     &vertex_of_triangle[0, 0], vertex_of_triangle.shape[1],
                      &cells_of_vertex[0, 0],
                      &horizon[0, 0], &skyview[0],
                      nhori,
-                     refine_factor, svf_type)
+                     refine_factor, svf_type, grid_type)
 
     return horizon, skyview

@@ -124,7 +124,7 @@ vector<int> sort_index(vector<double>& values){
 // Coordinate transformation and north vector
 //#############################################################################
 
-std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
+vector<geom_point> lonlat2ecef(double* lon, double* lat,
     float* elevation, int num_point, double rad_earth){
 
     /*Transformation of geographic longitude/latitude to earth-centered,
@@ -159,7 +159,7 @@ std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
 
 // ----------------------------------------------------------------------------
 
-std::vector<geom_vector> north_direction(vector<geom_point> points,
+vector<geom_vector> north_direction(vector<geom_point> points,
     vector<geom_vector> sphere_normals, double rad_earth){
 
     /* Compute unit vectors for points in earth-centered, earth-fixed (ECEF)
@@ -182,10 +182,10 @@ std::vector<geom_vector> north_direction(vector<geom_point> points,
         Vector with north directions (x, y, z) in ECEF coordinates [m]*/
 
     geom_vector v_p = {0.0, 0.0, rad_earth};  // north pole in ECEF coordinates
-	vector<geom_vector> north_directions(points.size());
+	vector<geom_vector> north_directions(sphere_normals.size());
     geom_vector v_n, v_j;
     double dot_prod;
-    for (size_t i = 0; i < points.size(); i++){
+    for (size_t i = 0; i < sphere_normals.size(); i++){
         v_n.x = v_p.x - points[i].x;
         v_n.y = v_p.y - points[i].y;
         v_n.z = v_p.z - points[i].z;
@@ -340,12 +340,13 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
         RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, sizeof(Triangle),
         num_triangle);
     for (int i = 0; i < num_triangle; i++) {
-        triangles_embree[i].v0 = vertex_of_triangle[(0 * num_triangle) + i];
-        triangles_embree[i].v1 = vertex_of_triangle[(1 * num_triangle) + i];
-        triangles_embree[i].v2 = vertex_of_triangle[(2 * num_triangle) + i];
+        triangles_embree[i].v0 = vertex_of_triangle[(i * 3) + 0];
+        triangles_embree[i].v1 = vertex_of_triangle[(i * 3) + 1];
+        triangles_embree[i].v2 = vertex_of_triangle[(i * 3) + 2];
     }
+    // -> improvement: pass buffer directly instead of copying ----------------  to do...
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = chrono::high_resolution_clock::now();
 
     // Commit geometry
     rtcCommitGeometry(geom);
@@ -356,9 +357,10 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
     // Commit scene
     rtcCommitScene(scene);
 
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> time = end - start;
-    std::cout << "Building BVH: " << time.count() << " s" << endl;
+    auto end = chrono::high_resolution_clock::now();
+    chrono::duration<double> time = end - start;
+    cout << setprecision(2) << fixed;
+    cout << "Building BVH: " << time.count()  << " s" << endl;
 
     return scene;
 
@@ -544,11 +546,10 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     int num_cell,
     double* vlon, double* vlat,
     int num_vertex,
-    int* vertex_of_triangle, int num_triangle_py,  // temporary
     int* cells_of_vertex,
     float* horizon, float* skyview,
     int azim_num,
-    int refine_factor, int svf_type){
+    int refine_factor, int svf_type, int grid_type){
 
     // Settings
     double ray_org_elev = 0.1;  // elevation offset [m] (0.1, 0.2, 0.5)
@@ -564,85 +565,152 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     // Constants
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
 
+    cout << "-----------------------------------------------------------------"
+        << "--------------" << endl;
+    cout << "Horizon and SVF computation with Intel Embree" << endl;
+    cout << "-----------------------------------------------------------------"
+        << "--------------" << endl;
+
     // ------------------------------------------------------------------------
     // Pre-processing of data (coordinate transformation, etc.)
     // ------------------------------------------------------------------------
 
-    std::cout << "---------------------------------------------" << endl;
-    std::cout << "Horizon and SVF computation with Intel Embree" << endl;
-    std::cout << "---------------------------------------------" << endl;
-
     // Adjust indices (Fortran -> C; start with index 0)
-    for (int i = 0; i < (num_triangle_py * 3); i++){
-        vertex_of_triangle[i] -= 1;
-    }
     for (int i = 0; i < (num_vertex * 6); i++){
         cells_of_vertex[i] -= 1;  // -> 'empty values' are set to -2
     }
 
     // Construct triangle mesh (-> use ICON circumcenters as triangle vertices)
-    auto start_mesh = std::chrono::high_resolution_clock::now();
-    vector <int> vertex_of_triangle_new;
+    auto start_mesh = chrono::high_resolution_clock::now();
+    vector <int> vertex_of_triangle;
     int ind_cell;
-    int ind_vertex;
-    int ind_1, ind_2;
     int ind_cov;
-    for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
-        vector <double> angles;
-        angles.reserve(6);
-        for (int j = 0; j < 6; j++){
-            ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
-            // ensure that 2-dimensional array 'cells_of_vertex' correctly
-            // passed as soon as integrated in Fortran code ------------------- check later!
-            if (ind_cell != -2) {
-                double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
-                                     clat[ind_cell] - vlat[ind_vertex]);
-                if (angle < 0.0) {
-                    angle += 2.0 * M_PI;
+    vector <double> clon_ext(num_cell); // ------------------------------------ not needed for first case -> improve
+    vector <double> clat_ext(num_cell); // ------------------------------------  (or keep if first case is removed...)
+    vector <float> hsurf_ext(num_cell);
+    if (grid_type == 0) {
+        cout << "Building triangle mesh solely from ICON grid circumcenters\n"
+            << "(-> ambiguous triangulation)" << endl;
+        int ind_1, ind_2;
+        for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
+            vector <double> angles;
+            angles.reserve(6);
+            for (int j = 0; j < 6; j++){
+                ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
+                // ensure that 2-dimensional array 'cells_of_vertex' correctly
+                // passed as soon as integrated in Fortran code --------------- check later!
+                if (ind_cell != -2) {
+                    double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
+                                        clat[ind_cell] - vlat[ind_vertex]);
+                    if (angle < 0.0) {
+                        angle += 2.0 * M_PI;
+                    }
+                    angles.push_back(angle);
                 }
-                angles.push_back(angle);
+            }
+            if (angles.size() >= 3){
+                // at least 3 vertices are needed to create one or multiple
+                // triangles(s) from the polygon
+                vector<int> ind_sort = sort_index(angles);
+                ind_1 = 1;
+                ind_2 = 2;
+                for (int j = 0; j < (angles.size() - 2); j++){
+                    ind_cov = num_vertex * ind_sort[0] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_cov = num_vertex * ind_sort[ind_1] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_1 ++;
+                    ind_cov = num_vertex * ind_sort[ind_2] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_2 ++;
+                    // add indices of triangle's vertices in clockwise order
+                }
             }
         }
-        if (angles.size() >= 3){
-            // at least 3 vertices are needed to create (multiple) triangles
-            // from the polygon
-            vector<int> ind_sort = sort_index(angles);
-            ind_1 = 1;
-            ind_2 = 2;
-            for (int j = 0; j < (angles.size() - 2); j++){
-                ind_cov = num_vertex * ind_sort[0] + ind_vertex;
-                vertex_of_triangle_new.push_back(cells_of_vertex[ind_cov]);
-                ind_cov = num_vertex * ind_sort[ind_1] + ind_vertex;
-                vertex_of_triangle_new.push_back(cells_of_vertex[ind_cov]);
-                ind_1 ++;
-                ind_cov = num_vertex * ind_sort[ind_2] + ind_vertex;
-                vertex_of_triangle_new.push_back( cells_of_vertex[ind_cov]);
-                ind_2 ++;
-                // add indices of triangle's vertices in clockwise order
+    }  else {
+        cout << "Building triangle mesh from ICON grid circumcenters and"
+            << " vertices\n(-> unique triangulation)" << endl;
+        for (int i = 0; i < num_cell; i++){
+            clon_ext[i] = clon[i];
+            clat_ext[i] = clat[i];
+            hsurf_ext[i] = hsurf[i];
+        }
+        int ind_add = num_cell;
+        int ind[7] = {0, 1, 2, 3, 4, 5, 0};
+        for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
+            vector <double> angles;
+            angles.reserve(6);
+            float hsurf_mean = 0.0;
+            for (int j = 0; j < 6; j++){
+                ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
+                // ensure that 2-dimensional array 'cells_of_vertex' correctly
+                // passed as soon as integrated in Fortran code --------------- check later!
+                if (ind_cell != -2) {
+                    double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
+                                        clat[ind_cell] - vlat[ind_vertex]);
+                    if (angle < 0.0) {
+                        angle += 2.0 * M_PI;
+                    }
+                    angles.push_back(angle);
+                    hsurf_mean += hsurf[ind_cell];
+                }
+            }
+            if (angles.size() == 6){
+                // ICON grid vertices with elevation
+                clon_ext.push_back(vlon[ind_vertex]);
+                clat_ext.push_back(vlat[ind_vertex]);
+                hsurf_ext.push_back(hsurf_mean / 6.0);
+                vector<int> ind_sort = sort_index(angles);
+                for (int j = 0; j < 6; j++){
+                    ind_cov = num_vertex * ind_sort[ind[j]] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_cov = num_vertex * ind_sort[ind[j + 1]] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    vertex_of_triangle.push_back(ind_add);
+                }
+                ind_add += 1;
             }
         }
-
     }
-    // -> indices in 'vertex_of_triangle' and 'vertex_of_triangle_new' are differently arranged !!!!!!!!!!!!!!!
-    // -> grouped in 'vertex_of_triangle_new' and 'far apart' in 'vertex_of_triangle'.
-    // -> modify 'initializeScene()' accordingly (respectively pass buffer directly from vector -> vector.data())
-    int num_triangle = vertex_of_triangle_new.size() / 3;
-    std::cout << "Number of triangles: " << num_triangle << endl;  // ----------- temporary
-    std::cout << "------------- TEST 0.6 -------------" << endl;  // ------------ temporary
-    auto end_mesh = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> time_mesh = end_mesh - start_mesh;
-    std::cout << "Triangle mesh building: " << time_mesh.count() << " s"
-        << endl;
+    int num_triangle = vertex_of_triangle.size() / 3;
+    cout << "Number of triangles in mesh: " << num_triangle << endl;
+    auto end_mesh = chrono::high_resolution_clock::now();
+    chrono::duration<double> time_mesh = end_mesh - start_mesh;
+    cout << setprecision(2) << fixed;
+    cout << "Triangle mesh building: " << time_mesh.count() << " s" << endl;
 
+    // ------------------------------------------------------------------------ temporary
+    cout << "------------------- temporary checks -------------------" << endl;
+    cout << "Compilation version: 3.1" << endl;
+    int ind_min = *min_element(vertex_of_triangle.begin(),
+        vertex_of_triangle.end());
+    cout << "Minimal index of 'vertex_of_triangle': " << ind_min << endl;
+    int ind_max = *max_element(vertex_of_triangle.begin(),
+        vertex_of_triangle.end());
+    cout << "Maximal index of 'vertex_of_triangle': " << ind_max << endl;
+    double sum_temp = 0.0;
+    for (int i = 0; i < vertex_of_triangle.size(); i++){
+        sum_temp += vertex_of_triangle[i];
+    }
+    cout << setprecision(0) << fixed;
+    cout << "Sum of vector 'vertex_of_triangle': " << sum_temp << endl;
+    cout << "Size of 'clon_ext': " << clon_ext.size() << endl;
+    cout << "--------------------------------------------------------" << endl;
+    // ------------------------------------------------------------------------ temporary
 
-
-    std::cout << "Convert spherical to ECEF coordinates" << endl;
+    cout << "Convert spherical to ECEF coordinates" << endl;
 
     // Triangle vertices (ECEF)
-    vector<geom_point> circumcenters = lonlat2ecef(clon, clat, hsurf,
-        num_cell, rad_earth);
+    vector<geom_point> circumcenters;
+    if (grid_type == 0) {
+        circumcenters = lonlat2ecef(clon, clat, hsurf,
+            num_cell, rad_earth);
+    } else {
+        circumcenters = lonlat2ecef(clon_ext.data(),
+            clat_ext.data(), hsurf_ext.data(), clon_ext.size(), rad_earth);
+    }
 
-    // // Sphere normals for circumcenters (ECEF)
+    // Sphere normals for circumcenters (ECEF)
     vector<geom_vector> sphere_normals(num_cell);
     for (int i = 0; i < num_cell; i++){
         sphere_normals[i].x = circumcenters[i].x / rad_earth;
@@ -665,9 +733,10 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     lat_orig /= num_cell;
 
     // In-place transformation from ECEF to ENU
-    std::cout << "Convert ECEF to ENU coordinates" << endl;
-    std::cout << "Origin of ENU coordinate system: " << rad2deg(lat_orig)
-        << " deg lat, " << rad2deg(lon_orig) << " deg lon" << endl;
+    cout << "Convert ECEF to ENU coordinates" << endl;
+    cout << setprecision(4) << fixed;
+    cout << "Origin of ENU coordinate system: " << rad2deg(lat_orig)
+        << " deg lat, "  << rad2deg(lon_orig) << " deg lon" << endl;
     ecef2enu_point(circumcenters, lon_orig, lat_orig, rad_earth);
     ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
     ecef2enu_vector(north_directions, lon_orig, lat_orig);
@@ -677,8 +746,8 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     // ------------------------------------------------------------------------
 
     RTCDevice device = initializeDevice();
-    RTCScene scene = initializeScene(device, vertex_of_triangle, num_triangle,
-        circumcenters);
+    RTCScene scene = initializeScene(device, vertex_of_triangle.data(),
+        num_triangle, circumcenters);
 
     // ------------------------------------------------------------------------
     // Terrain horizon and sky view factor computation
@@ -706,88 +775,93 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     }
 
     // Select algorithm for sky view factor computation
-    std::cout << "Sky View Factor computation algorithm: ";
+    cout << "Sky View Factor computation algorithm: ";
     if (svf_type == 0) {
-        std::cout << "pure geometric svf" << endl;
+        cout << "pure geometric svf" << endl;
         function_pointer = pure_geometric_svf;
     } else if (svf_type == 1) {
-        std::cout << "geometric scaled with sin(horizon)" << endl;
+        cout << "geometric scaled with sin(horizon)" << endl;
         function_pointer = geometric_svf_scaled_1;
     } else if (svf_type == 2) {
-        std::cout << "geometric scaled with sin(horizon)**2" << endl;
+        cout << "geometric scaled with sin(horizon)**2" << endl;
         function_pointer = geometric_svf_scaled_2;
     }
 
     // ------------------------------------------------------------------------
     // Perform ray tracing
     // ------------------------------------------------------------------------
-    auto start_ray = std::chrono::high_resolution_clock::now();
+    auto start_ray = chrono::high_resolution_clock::now();
     size_t num_rays = 0;
 
-    // num_rays += tbb::parallel_reduce(
-    // tbb::blocked_range<size_t>(0, num_cell), 0.0,
-    // [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
+    num_rays += tbb::parallel_reduce(
+    tbb::blocked_range<size_t>(0, num_cell), 0.0,
+    [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
-    // // for (size_t i = 0; i < (size_t)num_cell; i++){ // serial
-    // for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
+    // for (size_t i = 0; i < (size_t)num_cell; i++){ // serial
+    for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
-    //     // Elevate origin for ray tracing by 'safety margin'
-    //     float ray_org_x = (float)(circumcenters[i].x
-    //         + sphere_normals[i].x * ray_org_elev);
-    //     float ray_org_y = (float)(circumcenters[i].y
-    //         + sphere_normals[i].y * ray_org_elev);
-    //     float ray_org_z = (float)(circumcenters[i].z
-    //         + sphere_normals[i].z * ray_org_elev);
+        // Elevate origin for ray tracing by 'safety margin'
+        float ray_org_x = (float)(circumcenters[i].x
+            + sphere_normals[i].x * ray_org_elev);
+        float ray_org_y = (float)(circumcenters[i].y
+            + sphere_normals[i].y * ray_org_elev);
+        float ray_org_z = (float)(circumcenters[i].z
+            + sphere_normals[i].z * ray_org_elev);
 
-    //     double* horizon_cell = new double[horizon_cell_len];  // [rad]
+        double* horizon_cell = new double[horizon_cell_len];  // [rad]
 
-    //     // Compute terrain horizon
-    //     ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
-    //         hori_acc, dist_search, elev_ang_thresh,
-    //         scene, num_rays,
-    //         horizon_cell, horizon_cell_len,
-    //         azim_shift,
-    //         sphere_normals[i], north_directions[i],
-    //         azim_sin, azim_cos,
-    //         elev_sin_1ha, elev_cos_1ha,
-    //         elev_sin_2ha, elev_cos_2ha);
+        // Compute terrain horizon
+        ray_guess_const(ray_org_x, ray_org_y, ray_org_z,
+            hori_acc, dist_search, elev_ang_thresh,
+            scene, num_rays,
+            horizon_cell, horizon_cell_len,
+            azim_shift,
+            sphere_normals[i], north_directions[i],
+            azim_sin, azim_cos,
+            elev_sin_1ha, elev_cos_1ha,
+            elev_sin_2ha, elev_cos_2ha);
 
-    //     // Clip lower limit of terrain horizon values to 0.0
-    //     for(int j = 0; j < horizon_cell_len; j++){
-    //         if (horizon_cell[j] < 0.0){
-    //             horizon_cell[j] = 0.0;
-    //         }
-    //     }
+        // Clip lower limit of terrain horizon values to 0.0
+        for(int j = 0; j < horizon_cell_len; j++){
+            if (horizon_cell[j] < 0.0){
+                horizon_cell[j] = 0.0;
+            }
+        }
 
-    //     // Compute mean horizon for sector and save in 'horizon' buffer
-    //     for(int j = 0; j < azim_num; j++){
-    //         double horizon_mean = 0.0;
-    //         for(int k = 0; k < refine_factor; k++){
-    //             horizon_mean += horizon_cell[(j * refine_factor) + k];
-    //         }
-    //         horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
-    //             / (double)refine_factor);
-    //     }
+        // Compute mean horizon for sector and save in 'horizon' buffer
+        for(int j = 0; j < azim_num; j++){
+            double horizon_mean = 0.0;
+            for(int k = 0; k < refine_factor; k++){
+                horizon_mean += horizon_cell[(j * refine_factor) + k];
+            }
+            horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
+                / (double)refine_factor);
+        }
 
-    //     // Compute sky view factor and save in 'skyview' buffer
-    //     skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
-    //         azim_shift);
+        // Compute sky view factor and save in 'skyview' buffer
+        skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
+            azim_shift);
 
-    //     delete[] horizon_cell;
+        delete[] horizon_cell;
 
-    // }
+    }
 
-    // return num_rays;  // parallel
-    // }, std::plus<size_t>());  // parallel
+    return num_rays;  // parallel
+    }, std::plus<size_t>());  // parallel
 
-    auto end_ray = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> time_ray = end_ray - start_ray;
-    std::cout << "Ray tracing: " << time_ray.count() << " s" << endl;
+    auto end_ray = chrono::high_resolution_clock::now();
+    chrono::duration<double> time_ray = end_ray - start_ray;
+    cout << setprecision(2) << fixed;
+    cout << "Ray tracing: " << time_ray.count() << " s" << endl;
 
     // Print number of rays needed for location and azimuth direction
     cout << "Number of rays shot: " << num_rays << endl;
     double ratio = (double)num_rays / (double)(num_cell * azim_num);
-    printf("Average number of rays per cell and azimuth sector: %.2f \n",
-        ratio);
+    cout << setprecision(2) << fixed;
+    cout << "Average number of rays per cell and azimuth sector: " << ratio
+        << endl;
+
+    cout << "-----------------------------------------------------------------"
+        << "--------------" << endl;
 
 }
