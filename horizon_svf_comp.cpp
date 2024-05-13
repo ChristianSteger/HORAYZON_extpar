@@ -12,7 +12,7 @@
 #include <sstream>
 #include <iomanip>
 #include <type_traits>
-#include <embree3/rtcore.h>
+#include <embree4/rtcore.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
 
@@ -373,13 +373,6 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
 bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
     float dy, float dz, float dist_search){
 
-    // Intersect context
-    struct RTCIntersectContext context;
-    // rtcInitIntersectContext() initializes the intersection context
-    // to default values and should be called
-    // to initialize every ray intersection context
-    rtcInitIntersectContext(&context);
-
     // RTCRay - single ray structure - defines the ray layout for a single ray
     struct RTCRay ray;
     // origin members
@@ -394,10 +387,10 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
     ray.tnear = 0.0;
     //ray.tfar = std::numeric_limits<float>::infinity();
     ray.tfar = dist_search;
+    ray.mask = 1;
 
-    // Intersect ray with scene - function that checks
-    // whether there is a hit with the scene
-    rtcOccluded1(scene, &context, &ray);
+    // Intersect ray with scene
+    rtcOccluded1(scene, &ray);
 
     return (ray.tfar < 0.0);
 }

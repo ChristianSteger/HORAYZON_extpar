@@ -441,7 +441,7 @@ for i in range(5):
 
 # Check terrain horizon for specific (triangle) cell
 # ind = 520_528  # 521_721
-ind = 770598  # 468426, 644634  # strange: 644639
+ind = 783182  # 468426, 644634  # strange: 644639
 # azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])
 plt.figure(figsize=(15, 5))

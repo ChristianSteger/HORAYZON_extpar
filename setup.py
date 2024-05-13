@@ -28,7 +28,7 @@ elif sys.platform in ["win32"]:
 else:
     raise ValueError("Unsupported operating system")
 include_dirs_cpp = [np.get_include()]
-extra_objects_cpp = [path_lib_conda + i + lib_end for i in ["libembree3"]]
+extra_objects_cpp = [path_lib_conda + i + lib_end for i in ["libembree4"]]
 
 # -----------------------------------------------------------------------------
 # Compile Cython/C++ code
