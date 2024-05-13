@@ -344,7 +344,7 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
         triangles_embree[i].v1 = vertex_of_triangle[(i * 3) + 1];
         triangles_embree[i].v2 = vertex_of_triangle[(i * 3) + 2];
     }
-    // -> improvement: pass buffer directly instead of copying ----------------  to do...
+    // -> improvement: pass buffer directly instead of copying
 
     auto start = chrono::high_resolution_clock::now();
 
@@ -360,7 +360,8 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
     auto end = chrono::high_resolution_clock::now();
     chrono::duration<double> time = end - start;
     cout << setprecision(2) << fixed;
-    cout << "Building BVH: " << time.count()  << " s" << endl;
+    cout << "Building bounding volume hierarchy (BVH): " << time.count()
+        << " s" << endl;
 
     return scene;
 
@@ -483,8 +484,7 @@ double (*function_pointer)(double* horizon_cell, int horizon_cell_len,
     double azim_shift);
 
 //-----------------------------------------------------------------------------
-// Visible sky fraction for horizontal plane
-// (-> 'pure geometric sky view factor' in EXTPAR)
+// Visible sky fraction for horizontal plane (pure geometric sky view factor)
 //-----------------------------------------------------------------------------
 
 double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
@@ -499,8 +499,7 @@ double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
 }
 
 //-----------------------------------------------------------------------------
-// Sky view factor for horizontal plane
-// (-> 'geometric scaled with sin(horizon)' in EXTPAR)
+// Sky view factor for horizontal plane (geometric scaled with sin(horizon))
 //-----------------------------------------------------------------------------
 
 double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
@@ -516,7 +515,7 @@ double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
 
 //-----------------------------------------------------------------------------
 // Sky view factor for horizontal plane additionally scaled with sin(horizon)
-// (-> 'geometric scaled with sin(horizon)**2' in EXTPAR)
+// (geometric scaled with sin(horizon)**2)
 //-----------------------------------------------------------------------------
 
 double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
@@ -578,9 +577,9 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     vector <int> vertex_of_triangle;
     int ind_cell;
     int ind_cov;
-    vector <double> clon_ext(num_cell); // ------------------------------------ not needed for first case -> improve
-    vector <double> clat_ext(num_cell); // ------------------------------------  (or keep if first case is removed...)
-    vector <float> hsurf_ext(num_cell);
+    vector <double> clon_ext;
+    vector <double> clat_ext;
+    vector <float> hsurf_ext;
     if (grid_type == 0) {
         cout << "Building triangle mesh solely from ICON grid circumcenters\n"
             << "(-> ambiguous triangulation)" << endl;
@@ -624,9 +623,9 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
         cout << "Building triangle mesh from ICON grid circumcenters and"
             << " vertices\n(-> unique triangulation)" << endl;
         for (int i = 0; i < num_cell; i++){
-            clon_ext[i] = clon[i];
-            clat_ext[i] = clat[i];
-            hsurf_ext[i] = hsurf[i];
+            clon_ext.push_back(clon[i]);
+            clat_ext.push_back(clat[i]);
+            hsurf_ext.push_back(hsurf[i]);
         }
         int ind_add = num_cell;
         int ind[7] = {0, 1, 2, 3, 4, 5, 0};
@@ -671,25 +670,6 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     chrono::duration<double> time_mesh = end_mesh - start_mesh;
     cout << setprecision(2) << fixed;
     cout << "Triangle mesh building: " << time_mesh.count() << " s" << endl;
-
-    // ------------------------------------------------------------------------ temporary
-    cout << "------------------- temporary checks -------------------" << endl;
-    cout << "Compilation version: 3.1" << endl;
-    int ind_min = *min_element(vertex_of_triangle.begin(),
-        vertex_of_triangle.end());
-    cout << "Minimal index of 'vertex_of_triangle': " << ind_min << endl;
-    int ind_max = *max_element(vertex_of_triangle.begin(),
-        vertex_of_triangle.end());
-    cout << "Maximal index of 'vertex_of_triangle': " << ind_max << endl;
-    double sum_temp = 0.0;
-    for (int i = 0; i < vertex_of_triangle.size(); i++){
-        sum_temp += vertex_of_triangle[i];
-    }
-    cout << setprecision(0) << fixed;
-    cout << "Sum of vector 'vertex_of_triangle': " << sum_temp << endl;
-    cout << "Size of 'clon_ext': " << clon_ext.size() << endl;
-    cout << "--------------------------------------------------------" << endl;
-    // ------------------------------------------------------------------------ temporary
 
     cout << "Convert spherical to ECEF coordinates" << endl;
 

@@ -220,13 +220,16 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
 # # Load grid information
 # file_grid = "EXTPAR_test/icon_grid_DOM01.nc"
 # ds = xr.open_dataset(path_extpar + file_grid)
-# vlon = ds["vlon"].values  # (num_vertex; float64)
-# vlat = ds["vlat"].values  # (num_vertex; float64)
 # clon = ds["clon"].values  # (num_cell; float64)
 # clat = ds["clat"].values  # (num_cell; float64)
+# vlon = ds["vlon"].values  # (num_vertex; float64)
+# vlat = ds["vlat"].values  # (num_vertex; float64)
 # vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
+# cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
+# grid_level = ds.attrs["grid_level"]  # (k)
+# grid_root = ds.attrs["grid_root"]  # (n)
 # ds.close()
-#
+
 # # Load elevation of cell vertices
 # file_topo = "EXTPAR_test/topography_buffer_extpar_v5.8_icon_grid_DOM01.nc"
 # ds = xr.open_dataset(path_extpar + file_topo)
@@ -235,21 +238,24 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
 # horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
 # skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
 # ds.close()
-#
+
 # # Further settings
-# svf_type = 0
-# refine_factor = 10
+# # nhori = 24
+# # refine_factor = 10
+# nhori = 240
+# refine_factor = 1
+# svf_type = 2   # 0, 1, 2
 
 # -----------------------------------------------------------------------------
 # Real data (Brigitta)
 # -----------------------------------------------------------------------------
 
 # # Load grid information
-# file_grid = "Brigitta/domain1_DOM01.nc"
+# # file_grid = "Brigitta/domain1_DOM01.nc"
 # # file_grid = "Brigitta/domain2_DOM02.nc"
 # # file_grid = "Brigitta/domain3_DOM03.nc"
 # # file_grid = "Brigitta/domain4_DOM04.nc"
-# # file_grid = "Brigitta/domain_switzerland_100m.nc"
+# file_grid = "Brigitta/domain_switzerland_100m.nc"
 # ds = xr.open_dataset(path_extpar + file_grid)
 # clon = ds["clon"].values  # (num_cell; float64)
 # clat = ds["clat"].values  # (num_cell; float64)
@@ -262,25 +268,25 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
 # ds.close()
 
 # # Load elevation of cell vertices
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
+# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
 # # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
 # # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
 # # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
-# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
-# #             + "100m.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
+#              + "100m.nc"
 # ds = xr.open_dataset(path_extpar + file_topo)
 # hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
-# nhori = ds["nhori"].size
-# horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
-# skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
+# # nhori = ds["nhori"].size
+# # horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
+# # skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
 # ds.close()
 
 # # Further settings
-# nhori = 24
-# refine_factor = 10
-# # nhori = 240
-# # refine_factor = 1
-# svf_type = 2
+# # nhori = 24
+# # refine_factor = 10
+# nhori = 240
+# refine_factor = 1
+# svf_type = 2   # 0, 1, 2
 
 # -----------------------------------------------------------------------------
 # Real data (resolutions from ~2km to ~30 m)
@@ -405,15 +411,14 @@ for grid_type in range(2):
 
 # Map plot of terrain horizon or sky view factor
 grid_type = 1
+# values = skyview_old
+values = skyview_gt[grid_type]
+cmap = plt.get_cmap("YlGnBu_r")
+levels = np.arange(0.85, 1.0, 0.005)
 
-# values = skyview_gt[grid_type]
-# # values = skyview_old
-# cmap = plt.get_cmap("YlGnBu_r")
-# levels = np.arange(0.8, 1.0, 0.005)
-
-values = horizon_gt[grid_type][0, :]
-levels = np.arange(0.0, 42.5, 2.5)
-cmap = plt.get_cmap("afmhot_r")
+# values = horizon_gt[grid_type][0, :]
+# levels = np.arange(0.0, 37.5, 2.5)
+# cmap = plt.get_cmap("afmhot_r")
 
 norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")
 plt.figure(figsize=(14, 8))
@@ -440,8 +445,9 @@ for i in range(5):
 # -----------------------------------------------------------------------------
 
 # Check terrain horizon for specific (triangle) cell
-# ind = 520_528  # 521_721
-ind = 783182  # 468426, 644634  # strange: 644639
+grid_type = 1  # used for plotting grid
+ind = 480476
+# real data, 2km, ind = 682451 -> pronounced difference between grid types!
 # azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])
 plt.figure(figsize=(15, 5))
@@ -471,7 +477,10 @@ triangles = mpl.tri.Triangulation(
 plt.triplot(triangles, color="black", linewidth=0.5)
 # -----------------------------------------------------------------------------
 # plt.plot(azim_old, horizon_old[:, ind], label="old", color="red", lw=2.5)
-plt.plot(azim, horizon[:, ind], label="Ray tracing", color="royalblue", lw=2.5)
+plt.plot(azim, horizon_gt[0][:, ind], label="Ray tracing (grid_type = 0)",
+         color="royalblue", lw=1.5, ls="--")
+plt.plot(azim, horizon_gt[1][:, ind], label="Ray tracing (grid_type = 1)",
+         color="royalblue", lw=2.5)
 plt.axis((0.0, 360.0, 0.0, 50.0))
 plt.legend(fontsize=12, frameon=False)
 plt.xlabel("Azimuth angle (clockwise from North) [deg]")
