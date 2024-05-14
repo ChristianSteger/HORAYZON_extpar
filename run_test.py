@@ -14,14 +14,14 @@ from pyproj import Transformer
 mpl.style.use("classic")
 
 # Path to folders
-# path_extpar = "/scratch/mch/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
-root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
-path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
-               + "ICON_grids_EXTPAR/"
+path_extpar = "/scratch/mch/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
+# root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
+# path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
+#                + "ICON_grids_EXTPAR/"
 
 # Path to Cython/C++ functions
-# sys.path.append("/scratch/mch/csteger/HORAYZON_extpar/")
-sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
+sys.path.append("/scratch/mch/csteger/HORAYZON_extpar/")
+# sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
 from horizon_svf import horizon_svf_comp_py
 
 ###############################################################################
@@ -250,53 +250,12 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
 # Real data (Brigitta)
 # -----------------------------------------------------------------------------
 
-# # Load grid information
-# # file_grid = "Brigitta/domain1_DOM01.nc"
-# # file_grid = "Brigitta/domain2_DOM02.nc"
-# # file_grid = "Brigitta/domain3_DOM03.nc"
-# # file_grid = "Brigitta/domain4_DOM04.nc"
-# file_grid = "Brigitta/domain_switzerland_100m.nc"
-# ds = xr.open_dataset(path_extpar + file_grid)
-# clon = ds["clon"].values  # (num_cell; float64)
-# clat = ds["clat"].values  # (num_cell; float64)
-# vlon = ds["vlon"].values  # (num_vertex; float64)
-# vlat = ds["vlat"].values  # (num_vertex; float64)
-# vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
-# cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
-# grid_level = ds.attrs["grid_level"]  # (k)
-# grid_root = ds.attrs["grid_root"]  # (n)
-# ds.close()
-
-# # Load elevation of cell vertices
-# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
-# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
-# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
-# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
-#              + "100m.nc"
-# ds = xr.open_dataset(path_extpar + file_topo)
-# hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
-# # nhori = ds["nhori"].size
-# # horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
-# # skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
-# ds.close()
-
-# # Further settings
-# # nhori = 24
-# # refine_factor = 10
-# nhori = 240
-# refine_factor = 1
-# svf_type = 2   # 0, 1, 2
-
-# -----------------------------------------------------------------------------
-# Real data (resolutions from ~2km to ~30 m)
-# -----------------------------------------------------------------------------
-
 # Load grid information
-# file_grid = "Resolutions/icon_grid_res0032m.nc"
-# file_grid = "Resolutions/icon_grid_res0130m.nc"
-file_grid = "Resolutions/icon_grid_res0519m.nc"
-# file_grid = "Resolutions/icon_grid_res2076m.nc"
+# file_grid = "Brigitta/domain1_DOM01.nc"
+# file_grid = "Brigitta/domain2_DOM02.nc"
+# file_grid = "Brigitta/domain3_DOM03.nc"
+# file_grid = "Brigitta/domain4_DOM04.nc"
+file_grid = "Brigitta/domain_switzerland_100m.nc"
 ds = xr.open_dataset(path_extpar + file_grid)
 clon = ds["clon"].values  # (num_cell; float64)
 clat = ds["clat"].values  # (num_cell; float64)
@@ -309,12 +268,17 @@ grid_root = ds.attrs["grid_root"]  # (n)
 ds.close()
 
 # Load elevation of cell vertices
-# file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0032m.nc"
-# file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0130m.nc"
-file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0519m.nc"
-# file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res2076m.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
+file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
+             + "100m.nc"
 ds = xr.open_dataset(path_extpar + file_topo)
 hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
+# nhori = ds["nhori"].size
+# horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
+# skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
 ds.close()
 
 # Further settings
@@ -322,7 +286,45 @@ ds.close()
 # refine_factor = 10
 nhori = 240
 refine_factor = 1
-svf_type = 1   # 0, 1, 2
+svf_type = 2   # 0, 1, 2
+ray_org_elev = 0.2
+
+# -----------------------------------------------------------------------------
+# Real data (resolutions from ~2km to ~30 m)
+# -----------------------------------------------------------------------------
+
+# # Load grid information
+# # file_grid = "Resolutions/icon_grid_res0032m.nc"
+# # file_grid = "Resolutions/icon_grid_res0130m.nc"
+# file_grid = "Resolutions/icon_grid_res0519m.nc"
+# # file_grid = "Resolutions/icon_grid_res2076m.nc"
+# ds = xr.open_dataset(path_extpar + file_grid)
+# clon = ds["clon"].values  # (num_cell; float64)
+# clat = ds["clat"].values  # (num_cell; float64)
+# vlon = ds["vlon"].values  # (num_vertex; float64)
+# vlat = ds["vlat"].values  # (num_vertex; float64)
+# vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
+# cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
+# grid_level = ds.attrs["grid_level"]  # (k)
+# grid_root = ds.attrs["grid_root"]  # (n)
+# ds.close()
+
+# # Load elevation of cell vertices
+# # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0032m.nc"
+# # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0130m.nc"
+# file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0519m.nc"
+# # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res2076m.nc"
+# ds = xr.open_dataset(path_extpar + file_topo)
+# hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
+# ds.close()
+
+# # Further settings
+# # nhori = 24
+# # refine_factor = 10
+# nhori = 240
+# refine_factor = 1
+# svf_type = 1   # 0, 1, 2
+# ray_org_elev = 0.1
 
 ###############################################################################
 # Check resolution and topography
@@ -396,7 +398,7 @@ for grid_type in range(2):
                                         vlon, vlat,
                                         (cells_of_vertex + 1),
                                         nhori, refine_factor, svf_type,
-                                        grid_type)
+                                        grid_type, ray_org_elev)
     print("Total elapsed time: %.2f" % (time.perf_counter() - t_beg) + " s")
     horizon_gt[grid_type] = horizon
     skyview_gt[grid_type] = skyview
@@ -456,11 +458,11 @@ dist_search = 40_000  # search distance for horizon [m]
 if grid_type == 0:
     phi, theta, radius = observer_perspective(clon, clat, hsurf,
                                             clon[ind], clat[ind],
-                                            hsurf[ind] + 0.1)
+                                            hsurf[ind] + ray_org_elev)
 else:
     phi, theta, radius = observer_perspective(clon_ext, clat_ext, hsurf_ext,
                                             clon[ind], clat[ind],
-                                            hsurf[ind] + 0.1)
+                                            hsurf[ind] + ray_org_elev)
 mask_dist = (radius[vertex_of_triangle_gt[grid_type]].min(axis=0)
              <= dist_search)
 mask_theta = (theta[vertex_of_triangle_gt[grid_type]].max(axis=0) > 0.0)

@@ -9,7 +9,8 @@ cdef extern from "horizon_svf_comp.h":
                           np.npy_int32* cells_of_vertex,
                           float* horizon, float* skyview,
                           int nhori,
-                          int refine_factor, int svf_type, int grid_type)
+                          int refine_factor, int svf_type,
+                          int grid_type, double ray_org_elev)
 
 # Interface for Python function
 def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
@@ -21,7 +22,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
                         int nhori,
                         int refine_factor,
                         int svf_type,
-                        int grid_type):
+                        int grid_type,
+                        float ray_org_elev):
     """Compute the terrain horizon and sky view factor.
 
     Parameters
@@ -59,6 +61,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
                (-> ambiguous triangulation)
             1: Building triangle mesh from ICON grid circumcenters and vertices
                (-> unique triangulation)
+    ray_org_elev : double
+        Vertical elevation of ray origin above surface [metre]
 
     Returns
     -------
@@ -86,6 +90,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
         raise ValueError("'refine_factor' must be in the range [1, 50]")
     if (svf_type < 0) or (svf_type > 2):
         raise ValueError("'svf_type' must be in the range [0, 2]")
+    if ray_org_elev < 0.1:
+        raise TypeError("Minimal allowed value for 'ray_org_elev' is 0.1 m")
 
     # Allocate array for output
     cdef np.ndarray[np.float32_t, ndim = 2, mode = "c"] \
@@ -104,6 +110,7 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
                      &cells_of_vertex[0, 0],
                      &horizon[0, 0], &skyview[0],
                      nhori,
-                     refine_factor, svf_type, grid_type)
+                     refine_factor, svf_type,
+                     grid_type, ray_org_elev)
 
     return horizon, skyview

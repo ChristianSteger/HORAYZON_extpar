@@ -10,6 +10,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     int* cells_of_vertex,
     float* horizon, float* skyview,
     int nhori,
-    int refine_factor, int svf_type, int grid_type);
+    int refine_factor, int svf_type,
+    int grid_type, double ray_org_elev);
 
 #endif

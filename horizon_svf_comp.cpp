@@ -108,7 +108,7 @@ inline geom_vector vector_matrix_multiplication(geom_vector v_in,
 vector<int> sort_index(vector<double>& values){
 
 	vector<int> index(values.size());
-     for (int i = 0 ; i < index.size() ; i++) {
+     for (size_t i = 0 ; i < index.size() ; i++) {
         index[i] = i;
     }
 
@@ -541,10 +541,10 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     int* cells_of_vertex,
     float* horizon, float* skyview,
     int azim_num,
-    int refine_factor, int svf_type, int grid_type){
+    int refine_factor, int svf_type,
+    int grid_type, double ray_org_elev){
 
     // Settings
-    double ray_org_elev = 0.1;  // elevation offset [m] (0.1, 0.2, 0.5)
     float dist_search = 50000;  // horizon search distance [m]
     double hori_acc = deg2rad(0.25);  // horizon accuracy [deg]
     double elev_ang_thresh = deg2rad(-85.0);
@@ -559,9 +559,15 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
 
     cout << "-----------------------------------------------------------------"
         << "--------------" << endl;
-    cout << "Horizon and SVF computation with Intel Embree" << endl;
+    cout << "Horizon and SVF computation with Intel Embree (v0.1)" << endl;
     cout << "-----------------------------------------------------------------"
         << "--------------" << endl;
+
+    // Print settings
+    cout << "nhori: " << azim_num << endl;
+    cout << "refine_factor: " << refine_factor << endl;
+    cout << "svf_type: " << svf_type << endl;
+    cout << "ray_org_elev: " << ray_org_elev << endl;
 
     // ------------------------------------------------------------------------
     // Pre-processing of data (coordinate transformation, etc.)
@@ -606,7 +612,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
                 vector<int> ind_sort = sort_index(angles);
                 ind_1 = 1;
                 ind_2 = 2;
-                for (int j = 0; j < (angles.size() - 2); j++){
+                for (size_t j = 0; j < (angles.size() - 2); j++){
                     ind_cov = num_vertex * ind_sort[0] + ind_vertex;
                     vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
                     ind_cov = num_vertex * ind_sort[ind_1] + ind_vertex;
