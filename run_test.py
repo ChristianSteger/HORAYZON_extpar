@@ -230,7 +230,7 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
 # grid_root = ds.attrs["grid_root"]  # (n)
 # ds.close()
 
-# # Load elevation of cell vertices
+# # Load elevation of cell circumcenters
 # file_topo = "EXTPAR_test/topography_buffer_extpar_v5.8_icon_grid_DOM01.nc"
 # ds = xr.open_dataset(path_extpar + file_topo)
 # nhori = ds["nhori"].size
@@ -250,44 +250,44 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
 # Real data (Brigitta)
 # -----------------------------------------------------------------------------
 
-# Load grid information
-# file_grid = "Brigitta/domain1_DOM01.nc"
-# file_grid = "Brigitta/domain2_DOM02.nc"
-# file_grid = "Brigitta/domain3_DOM03.nc"
-# file_grid = "Brigitta/domain4_DOM04.nc"
-file_grid = "Brigitta/domain_switzerland_100m.nc"
-ds = xr.open_dataset(path_extpar + file_grid)
-clon = ds["clon"].values  # (num_cell; float64)
-clat = ds["clat"].values  # (num_cell; float64)
-vlon = ds["vlon"].values  # (num_vertex; float64)
-vlat = ds["vlat"].values  # (num_vertex; float64)
-vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
-cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
-grid_level = ds.attrs["grid_level"]  # (k)
-grid_root = ds.attrs["grid_root"]  # (n)
-ds.close()
+# # Load grid information
+# # file_grid = "Brigitta/domain1_DOM01.nc"
+# # file_grid = "Brigitta/domain2_DOM02.nc"
+# # file_grid = "Brigitta/domain3_DOM03.nc"
+# # file_grid = "Brigitta/domain4_DOM04.nc"
+# file_grid = "Brigitta/domain_switzerland_100m.nc"
+# ds = xr.open_dataset(path_extpar + file_grid)
+# clon = ds["clon"].values  # (num_cell; float64)
+# clat = ds["clat"].values  # (num_cell; float64)
+# vlon = ds["vlon"].values  # (num_vertex; float64)
+# vlat = ds["vlat"].values  # (num_vertex; float64)
+# vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
+# cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
+# grid_level = ds.attrs["grid_level"]  # (k)
+# grid_root = ds.attrs["grid_root"]  # (n)
+# ds.close()
 
-# Load elevation of cell vertices
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
-# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
-file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
-             + "100m.nc"
-ds = xr.open_dataset(path_extpar + file_topo)
-hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
-# nhori = ds["nhori"].size
-# horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
-# skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
-ds.close()
+# # Load elevation of cell circumcenters
+# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain1_DOM01.nc"
+# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain2_DOM02.nc"
+# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain3_DOM03.nc"
+# # file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain4_DOM04.nc"
+# file_topo = "Brigitta/topography_buffer_extpar_v5.8_domain_switzerland_" \
+#              + "100m.nc"
+# ds = xr.open_dataset(path_extpar + file_topo)
+# hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
+# # nhori = ds["nhori"].size
+# # horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
+# # skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
+# ds.close()
 
-# Further settings
-# nhori = 24
-# refine_factor = 10
-nhori = 240
-refine_factor = 1
-svf_type = 2   # 0, 1, 2
-ray_org_elev = 0.2
+# # Further settings
+# # nhori = 24
+# # refine_factor = 10
+# nhori = 240
+# refine_factor = 1
+# svf_type = 2   # 0, 1, 2
+# ray_org_elev = 0.2
 
 # -----------------------------------------------------------------------------
 # Real data (resolutions from ~2km to ~30 m)
@@ -309,7 +309,7 @@ ray_org_elev = 0.2
 # grid_root = ds.attrs["grid_root"]  # (n)
 # ds.close()
 
-# # Load elevation of cell vertices
+# # Load elevation of cell circumcenters
 # # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0032m.nc"
 # # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0130m.nc"
 # file_topo = "Resolutions/topography_buffer_extpar_v5.8_icon_grid_res0519m.nc"
@@ -325,6 +325,41 @@ ray_org_elev = 0.2
 # refine_factor = 1
 # svf_type = 1   # 0, 1, 2
 # ray_org_elev = 0.1
+
+# -----------------------------------------------------------------------------
+# MeteoSwiss domains (2km, 1km, 500m)
+# -----------------------------------------------------------------------------
+
+# Load grid information
+file_grid = "/scratch/mch/csteger/topo_comparison/" \
+    + "icon_grid_00005_R19B09_DOM02.nc"
+ds = xr.open_dataset(file_grid)
+clon = ds["clon"].values  # (num_cell; float64)
+clat = ds["clat"].values  # (num_cell; float64)
+vlon = ds["vlon"].values  # (num_vertex; float64)
+vlat = ds["vlat"].values  # (num_vertex; float64)
+vertex_of_cell = ds["vertex_of_cell"].values - 1  # (3, num_cell; int32)
+cells_of_vertex = ds["cells_of_vertex"].values - 1  # (6, num_vertex)
+grid_level = ds.attrs["grid_level"]  # (k)
+grid_root = ds.attrs["grid_root"]  # (n)
+ds.close()
+
+# Load elevation of cell circumcenters
+file_topo = "/scratch/mch/csteger/output_extpar/i05/" \
+    + "external_parameter_icon_grid_00005_R19B09_DOM02.nc"
+ds = xr.open_dataset(file_topo)
+hsurf = ds["topography_c"].values.squeeze()  # (num_cell)
+horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
+skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
+ds.close()
+
+# Further settings
+# nhori = 24
+# refine_factor = 10
+nhori = 240
+refine_factor = 1
+svf_type = 1   # 0, 1, 2
+ray_org_elev = 0.1
 
 ###############################################################################
 # Check resolution and topography
@@ -354,6 +389,7 @@ gl.top_labels = False
 gl.right_labels = False
 plt.colorbar()
 plt.title("Elevation [m a.s.l]")
+plt.show()
 
 ###############################################################################
 # Compute horizon / sky view factor and visualise data
@@ -445,12 +481,14 @@ for i in range(5):
                             + (pts[0][1] - np.rad2deg(clat)) ** 2))
     print(ind)
 # -----------------------------------------------------------------------------
+plt.show()
 
 # Check terrain horizon for specific (triangle) cell
 grid_type = 1  # used for plotting grid
-ind = 480476
+ind = 1909971
 # real data, 2km, ind = 682451 -> pronounced difference between grid types!
-# azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
+# MeteoSwiss, 500m, ind=1901633, 1909971
+azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])
 plt.figure(figsize=(15, 5))
 # ---------------------------- Mask for triangles -----------------------------
@@ -478,7 +516,7 @@ triangles = mpl.tri.Triangulation(
     phi, theta, vertex_of_triangle_gt[grid_type][:, mask].transpose())
 plt.triplot(triangles, color="black", linewidth=0.5)
 # -----------------------------------------------------------------------------
-# plt.plot(azim_old, horizon_old[:, ind], label="old", color="red", lw=2.5)
+plt.plot(azim_old, horizon_old[:, ind], label="old", color="red", lw=2.5)
 plt.plot(azim, horizon_gt[0][:, ind], label="Ray tracing (grid_type = 0)",
          color="royalblue", lw=1.5, ls="--")
 plt.plot(azim, horizon_gt[1][:, ind], label="Ray tracing (grid_type = 1)",
@@ -487,3 +525,4 @@ plt.axis((0.0, 360.0, 0.0, 50.0))
 plt.legend(fontsize=12, frameon=False)
 plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
+plt.show()
