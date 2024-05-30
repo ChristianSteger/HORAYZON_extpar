@@ -1,22 +1,15 @@
 #define _USE_MATH_DEFINES
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
 #include <iostream>
 #include <vector>
-#include <exception>
-#include <math.h>
 #include <cmath>
-#include <limits>
-#include <cstdlib>
+//#include <limits>
 #include <chrono>
-#include <sstream>
 #include <iomanip>
-#include <type_traits>
+#include <algorithm>
 #include <embree4/rtcore.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_reduce.h>
-
-using namespace std;
 
 //#############################################################################
 // Geometries
@@ -105,14 +98,14 @@ inline geom_vector vector_matrix_multiplication(geom_vector v_in,
 // ----------------------------------------------------------------------------
 
 // Returns indices that would sort an array in ascending order
-vector<int> sort_index(vector<double>& values){
+std::vector<int> sort_index(std::vector<double>& values){
 
-	vector<int> index(values.size());
+	std::vector<int> index(values.size());
      for (size_t i = 0 ; i < index.size() ; i++) {
         index[i] = i;
     }
 
-    sort(index.begin(), index.end(), [&](const int& a, const int& b){
+    std::sort(index.begin(), index.end(), [&](const int& a, const int& b){
         return (values[a] < values[b]);
     });
 
@@ -124,11 +117,11 @@ vector<int> sort_index(vector<double>& values){
 // Coordinate transformation and north vector
 //#############################################################################
 
-vector<geom_point> lonlat2ecef(double* lon, double* lat,
+std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
     float* elevation, int num_point, double rad_earth){
 
     /*Transformation of geographic longitude/latitude to earth-centered,
-    earth-fixed (ECEF) coordinates. Assume spherical Earth.
+    earth-std::fixed (ECEF) coordinates. Assume spherical Earth.
 
     Parameters
     ----------
@@ -148,7 +141,7 @@ vector<geom_point> lonlat2ecef(double* lon, double* lat,
     points : vector of type <geom_point>
         Vector of points (x, y, z) in ECEF coordinates [m]*/
 
-    vector<geom_point> points(num_point);
+    std::vector<geom_point> points(num_point);
     for (int i = 0; i < num_point; i++){
         points[i].x = (rad_earth + elevation[i]) * cos(lat[i]) * cos(lon[i]);
         points[i].y = (rad_earth + elevation[i]) * cos(lat[i]) * sin(lon[i]);
@@ -159,12 +152,12 @@ vector<geom_point> lonlat2ecef(double* lon, double* lat,
 
 // ----------------------------------------------------------------------------
 
-vector<geom_vector> north_direction(vector<geom_point> points,
-    vector<geom_vector> sphere_normals, double rad_earth){
+std::vector<geom_vector> north_direction(std::vector<geom_point> points,
+    std::vector<geom_vector> sphere_normals, double rad_earth){
 
-    /* Compute unit vectors for points in earth-centered, earth-fixed (ECEF)
-    coordinates that point towards North and are perpendicular to the sphere's
-    normals.
+    /* Compute unit vectors for points in earth-centered, earth-std::fixed
+    (ECEF) coordinates that point towards North and are perpendicular to the
+    sphere's normals.
 
     Parameters
     ----------
@@ -182,7 +175,7 @@ vector<geom_vector> north_direction(vector<geom_point> points,
         Vector with north directions (x, y, z) in ECEF coordinates [m]*/
 
     geom_vector v_p = {0.0, 0.0, rad_earth};  // north pole in ECEF coordinates
-	vector<geom_vector> north_directions(sphere_normals.size());
+	std::vector<geom_vector> north_directions(sphere_normals.size());
     geom_vector v_n, v_j;
     double dot_prod;
     for (size_t i = 0; i < sphere_normals.size(); i++){
@@ -201,7 +194,7 @@ vector<geom_vector> north_direction(vector<geom_point> points,
 
 // ----------------------------------------------------------------------------
 
-void ecef2enu_point(vector<geom_point>& points, double lon_orig,
+void ecef2enu_point(std::vector<geom_point>& points, double lon_orig,
     double lat_orig, double rad_earth){
 
     /* In-place coordinate transformation of points from ECEF to ENU
@@ -245,7 +238,7 @@ void ecef2enu_point(vector<geom_point>& points, double lon_orig,
 
 // ----------------------------------------------------------------------------
 
-void ecef2enu_vector(vector<geom_vector>& vectors, double lon_orig,
+void ecef2enu_vector(std::vector<geom_vector>& vectors, double lon_orig,
     double lat_orig){
 
     /*In-place coordinate transformation of vectors from ECEF to ENU
@@ -319,7 +312,7 @@ struct Triangle{int v0, v1, v2;};
 
 // Initialise scene
 RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
-    int num_triangle, vector<geom_point>& vertices){
+    int num_triangle, std::vector<geom_point>& vertices){
 
     RTCScene scene = rtcNewScene(device);
     rtcSetSceneFlags(scene, RTC_SCENE_FLAG_ROBUST);
@@ -346,7 +339,7 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
     }
     // -> improvement: pass buffer directly instead of copying
 
-    auto start = chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Commit geometry
     rtcCommitGeometry(geom);
@@ -357,11 +350,11 @@ RTCScene initializeScene(RTCDevice device, int* vertex_of_triangle,
     // Commit scene
     rtcCommitScene(scene);
 
-    auto end = chrono::high_resolution_clock::now();
-    chrono::duration<double> time = end - start;
-    cout << setprecision(2) << fixed;
-    cout << "Building bounding volume hierarchy (BVH): " << time.count()
-        << " s" << endl;
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time = end - start;
+    std::cout << std::setprecision(2) << std::fixed;
+    std::cout << "Building bounding volume hierarchy (BVH): " << time.count()
+        << " s" << std::endl;
 
     return scene;
 
@@ -557,17 +550,18 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     // Constants
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
 
-    cout << "-----------------------------------------------------------------"
-        << "--------------" << endl;
-    cout << "Horizon and SVF computation with Intel Embree (v0.1)" << endl;
-    cout << "-----------------------------------------------------------------"
-        << "--------------" << endl;
+    std::cout << "------------------------------------------------------------"
+        << "-------------------" << std::endl;
+    std::cout << "Horizon and SVF computation with Intel Embree (v0.1)"
+        << std::endl;
+    std::cout << "------------------------------------------------------------"
+        << "-------------------" << std::endl;
 
     // Print settings
-    cout << "nhori: " << azim_num << endl;
-    cout << "refine_factor: " << refine_factor << endl;
-    cout << "svf_type: " << svf_type << endl;
-    cout << "ray_org_elev: " << ray_org_elev << endl;
+    std::cout << "nhori: " << azim_num << std::endl;
+    std::cout << "refine_factor: " << refine_factor << std::endl;
+    std::cout << "svf_type: " << svf_type << std::endl;
+    std::cout << "ray_org_elev: " << ray_org_elev << std::endl;
 
     // ------------------------------------------------------------------------
     // Pre-processing of data (coordinate transformation, etc.)
@@ -579,19 +573,19 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     }
 
     // Construct triangle mesh (-> use ICON circumcenters as triangle vertices)
-    auto start_mesh = chrono::high_resolution_clock::now();
-    vector <int> vertex_of_triangle;
+    auto start_mesh = std::chrono::high_resolution_clock::now();
+    std::vector<int> vertex_of_triangle;
     int ind_cell;
     int ind_cov;
-    vector <double> clon_ext;
-    vector <double> clat_ext;
-    vector <float> hsurf_ext;
+    std::vector<double> clon_ext;
+    std::vector<double> clat_ext;
+    std::vector<float> hsurf_ext;
     if (grid_type == 0) {
-        cout << "Building triangle mesh solely from ICON grid circumcenters\n"
-            << "(-> ambiguous triangulation)" << endl;
+        std::cout << "Building triangle mesh solely from ICON grid "
+            << "circumcenters\n (-> ambiguous triangulation)" << std::endl;
         int ind_1, ind_2;
         for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
-            vector <double> angles;
+            std::vector<double> angles;
             angles.reserve(6);
             for (int j = 0; j < 6; j++){
                 ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
@@ -609,7 +603,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
             if (angles.size() >= 3){
                 // at least 3 vertices are needed to create one or multiple
                 // triangles(s) from the polygon
-                vector<int> ind_sort = sort_index(angles);
+                std::vector<int> ind_sort = sort_index(angles);
                 ind_1 = 1;
                 ind_2 = 2;
                 for (size_t j = 0; j < (angles.size() - 2); j++){
@@ -626,8 +620,8 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
             }
         }
     }  else {
-        cout << "Building triangle mesh from ICON grid circumcenters and"
-            << " vertices\n(-> unique triangulation)" << endl;
+        std::cout << "Building triangle mesh from ICON grid circumcenters and"
+            << " vertices\n(-> unique triangulation)" << std::endl;
         for (int i = 0; i < num_cell; i++){
             clon_ext.push_back(clon[i]);
             clat_ext.push_back(clat[i]);
@@ -636,7 +630,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
         int ind_add = num_cell;
         int ind[7] = {0, 1, 2, 3, 4, 5, 0};
         for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
-            vector <double> angles;
+            std::vector<double> angles;
             angles.reserve(6);
             float hsurf_mean = 0.0;
             for (int j = 0; j < 6; j++){
@@ -658,7 +652,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
                 clon_ext.push_back(vlon[ind_vertex]);
                 clat_ext.push_back(vlat[ind_vertex]);
                 hsurf_ext.push_back(hsurf_mean / 6.0);
-                vector<int> ind_sort = sort_index(angles);
+                std::vector<int> ind_sort = sort_index(angles);
                 for (int j = 0; j < 6; j++){
                     ind_cov = num_vertex * ind_sort[ind[j]] + ind_vertex;
                     vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
@@ -671,16 +665,17 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
         }
     }
     int num_triangle = vertex_of_triangle.size() / 3;
-    cout << "Number of triangles in mesh: " << num_triangle << endl;
-    auto end_mesh = chrono::high_resolution_clock::now();
-    chrono::duration<double> time_mesh = end_mesh - start_mesh;
-    cout << setprecision(2) << fixed;
-    cout << "Triangle mesh building: " << time_mesh.count() << " s" << endl;
+    std::cout << "Number of triangles in mesh: " << num_triangle << std::endl;
+    auto end_mesh = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_mesh = end_mesh - start_mesh;
+    std::cout << std::setprecision(2) << std::fixed;
+    std::cout << "Triangle mesh building: " << time_mesh.count() << " s"
+        << std::endl;
 
-    cout << "Convert spherical to ECEF coordinates" << endl;
+    std::cout << "Convert spherical to ECEF coordinates" << std::endl;
 
     // Triangle vertices (ECEF)
-    vector<geom_point> circumcenters;
+    std::vector<geom_point> circumcenters;
     if (grid_type == 0) {
         circumcenters = lonlat2ecef(clon, clat, hsurf,
             num_cell, rad_earth);
@@ -690,7 +685,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     }
 
     // Sphere normals for circumcenters (ECEF)
-    vector<geom_vector> sphere_normals(num_cell);
+    std::vector<geom_vector> sphere_normals(num_cell);
     for (int i = 0; i < num_cell; i++){
         sphere_normals[i].x = circumcenters[i].x / rad_earth;
         sphere_normals[i].y = circumcenters[i].y / rad_earth;
@@ -698,7 +693,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     }
 
     // North vectors for circumcenters (ECEF)
-    vector<geom_vector> north_directions = north_direction(circumcenters,
+    std::vector<geom_vector> north_directions = north_direction(circumcenters,
         sphere_normals, rad_earth);
 
     // Origin of ENU coordinate system
@@ -712,10 +707,10 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     lat_orig /= num_cell;
 
     // In-place transformation from ECEF to ENU
-    cout << "Convert ECEF to ENU coordinates" << endl;
-    cout << setprecision(4) << fixed;
-    cout << "Origin of ENU coordinate system: " << rad2deg(lat_orig)
-        << " deg lat, "  << rad2deg(lon_orig) << " deg lon" << endl;
+    std::cout << "Convert ECEF to ENU coordinates" << std::endl;
+    std::cout << std::setprecision(4) << std::fixed;
+    std::cout << "Origin of ENU coordinate system: " << rad2deg(lat_orig)
+        << " deg lat, "  << rad2deg(lon_orig) << " deg lon" << std::endl;
     ecef2enu_point(circumcenters, lon_orig, lat_orig, rad_earth);
     ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
     ecef2enu_vector(north_directions, lon_orig, lat_orig);
@@ -754,22 +749,22 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     }
 
     // Select algorithm for sky view factor computation
-    cout << "Sky View Factor computation algorithm: ";
+    std::cout << "Sky View Factor computation algorithm: ";
     if (svf_type == 0) {
-        cout << "pure geometric svf" << endl;
+        std::cout << "pure geometric svf" << std::endl;
         function_pointer = pure_geometric_svf;
     } else if (svf_type == 1) {
-        cout << "geometric scaled with sin(horizon)" << endl;
+        std::cout << "geometric scaled with sin(horizon)" << std::endl;
         function_pointer = geometric_svf_scaled_1;
     } else if (svf_type == 2) {
-        cout << "geometric scaled with sin(horizon)**2" << endl;
+        std::cout << "geometric scaled with sin(horizon)**2" << std::endl;
         function_pointer = geometric_svf_scaled_2;
     }
 
     // ------------------------------------------------------------------------
     // Perform ray tracing
     // ------------------------------------------------------------------------
-    auto start_ray = chrono::high_resolution_clock::now();
+    auto start_ray = std::chrono::high_resolution_clock::now();
     size_t num_rays = 0;
 
     num_rays += tbb::parallel_reduce(
@@ -828,19 +823,19 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     return num_rays;  // parallel
     }, std::plus<size_t>());  // parallel
 
-    auto end_ray = chrono::high_resolution_clock::now();
-    chrono::duration<double> time_ray = end_ray - start_ray;
-    cout << setprecision(2) << fixed;
-    cout << "Ray tracing: " << time_ray.count() << " s" << endl;
+    auto end_ray = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_ray = end_ray - start_ray;
+    std::cout << std::setprecision(2) << std::fixed;
+    std::cout << "Ray tracing: " << time_ray.count() << " s" << std::endl;
 
     // Print number of rays needed for location and azimuth direction
-    cout << "Number of rays shot: " << num_rays << endl;
+    std::cout << "Number of rays shot: " << num_rays << std::endl;
     double ratio = (double)num_rays / (double)(num_cell * azim_num);
-    cout << setprecision(2) << fixed;
-    cout << "Average number of rays per cell and azimuth sector: " << ratio
-        << endl;
+    std::cout << std::setprecision(2) << std::fixed;
+    std::cout << "Average number of rays per cell and azimuth sector: "
+        << ratio << std::endl;
 
-    cout << "-----------------------------------------------------------------"
-        << "--------------" << endl;
+    std::cout << "------------------------------------------------------------"
+        << "-------------------" << std::endl;
 
 }
