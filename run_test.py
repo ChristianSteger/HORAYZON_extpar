@@ -1,34 +1,43 @@
-# Load modules
-import os
+# Description: Run HORAYON-extpar on login node
+#
+# Author: Christian R. Steger (Christian.Steger@meteoswiss.ch), April 2025
+
 import sys
 import time
+
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
-import matplotlib as mpl
+from matplotlib import style, rcParams, tri
 from matplotlib.ticker import MaxNLocator
 import cartopy.crs as ccrs
 import cartopy.feature as feature
 from pyproj import Transformer
 
-mpl.style.use("classic")
+style.use("classic")
 
-# Path to folders
-path_extpar = "/scratch/mch/csteger/EXTPAR_HORAYZON/ICON_grids_EXTPAR/"
-# root_IAC = os.getenv("HOME") + "/Dropbox/IAC/"
-# path_extpar = root_IAC + "Miscellaneous/Thesis_supervision/Caterina_Croci/" \
-#                + "ICON_grids_EXTPAR/"
+# Change latex fonts
+rcParams["mathtext.fontset"] = "custom"
+# custom mathtext font (set default to Bitstream Vera Sans)
+rcParams["mathtext.default"] = "rm"
+rcParams["mathtext.rm"] = "DejaVu Sans"
+
+# Paths
+path_icon = "/store_new/mch/msopr/csteger/Data/Miscellaneous/" \
+    + "ICON_grids_EXTPAR/"
+path_plot = "/scratch/mch/csteger/HORAYZON_extpar/"
 
 # Path to Cython/C++ functions
 sys.path.append("/scratch/mch/csteger/HORAYZON_extpar/")
-# sys.path.append("/Users/csteger/Downloads/HORAYZON_extpar/")
 from horizon_svf import horizon_svf_comp_py
 
 ###############################################################################
 # Functions
 ###############################################################################
 
-def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
+def observer_perspective(lon: np.ndarray, lat: np.ndarray,
+                         elevation: np.ndarray, lon_obs: float, lat_obs: float,
+                         elevation_obs:float) -> tuple:
     """Transform points to 'observer perspective'. Latitude/longitude -> ECEF
     -> ENU -> spherical coordinates.
 
@@ -73,8 +82,12 @@ def observer_perspective(lon, lat, elevation, lon_obs, lat_obs, elevation_obs):
 
 # -----------------------------------------------------------------------------
 
-def construct_triangle_mesh(clon, clat, vlon, vlat, cells_of_vertex):
-    """Building triangle mesh solely from ICON grid circumcenters
+def triangle_mesh_circ(clon: np.ndarray, clat: np.ndarray, vlon: np.ndarray,
+                       vlat: np.ndarray, cells_of_vertex: np.ndarray) \
+                        -> np.ndarray:
+    """Build triangle mesh solely from ICON grid cell circumcenters (non-unique
+    triangulation of hexa- and pentagons; relatively long triangle edges can
+    cause artefacts in horizon computation)
 
     Parameters
     ----------
@@ -91,18 +104,18 @@ def construct_triangle_mesh(clon, clat, vlon, vlat, cells_of_vertex):
         Array with latitude of ICON cell vertices
         (number of ICON vertices) [rad]
     cells_of_vertex : ndarray of int
-        Array with indices of ICON cells adjacent to ICON vertices. Indices
-        start with 1 according to Fortran (6, number of ICON vertices)
+        Array with indices of ICON cells adjacent to ICON vertices.
 
     Returns
     -------
     vertex_of_triangle : ndarray of int
-        Array with indices of triangle vertices (3, number of triangles)"""
+        Array with indices of triangle vertices (clockwise order)
+        (3, number of triangles)"""
 
     num_vertex = vlon.size
-    vertex_of_triangle = np.zeros((3, num_vertex * 6), dtype=np.int32)
+    vertex_of_triangle = np.zeros((3, num_vertex * 4), dtype=np.int32)
     angles = np.empty(6)
-    # -> allocate arrays with maximal possible size...
+    # allocate arrays with maximal possible size
     num_triangle = 0
     for ind_vertex in range(num_vertex):
         num_angles = 0
@@ -111,30 +124,40 @@ def construct_triangle_mesh(clon, clat, vlon, vlat, cells_of_vertex):
             if (ind_cell != -2):
                 angle = np.arctan2(clon[ind_cell] - vlon[ind_vertex],
                                    clat[ind_cell] - vlat[ind_vertex])
+                # clockwise angle from positive latitude-axis (y-axis)
                 if (angle < 0.0):
                     angle += 2.0 * np.pi
                 angles[num_angles] = angle
                 num_angles += 1
         if (num_angles >= 3):
+            # at least 3 vertices are needed to create one or multiple
+            # triangles(s) from the polygon
             ind_sort = np.argsort(angles[:num_angles])
             ind_1 = 1
             ind_2 = 2
             for j in range(num_angles - 2):
-                vertex_of_triangle[:, num_triangle] = \
-                    np.array([cells_of_vertex[ind_sort[0], ind_vertex],
-                            cells_of_vertex[ind_sort[ind_1], ind_vertex],
-                            cells_of_vertex[ind_sort[ind_2], ind_vertex]])
+                vertex_of_triangle[0, num_triangle] \
+                    = cells_of_vertex[ind_sort[0], ind_vertex]
+                vertex_of_triangle[1, num_triangle] \
+                    = cells_of_vertex[ind_sort[ind_1], ind_vertex]
+                vertex_of_triangle[2, num_triangle] \
+                    = cells_of_vertex[ind_sort[ind_2], ind_vertex]
                 ind_1 += 1
                 ind_2 += 1
                 num_triangle += 1
-        if ind_vertex % 100_000 == 0:
-            print("First " + str(ind_vertex) + " triangles constructed")
+        if (ind_vertex + 1) % 100_000 == 0:
+            print("First " + str(ind_vertex + 1) + " triangles constructed")
     vertex_of_triangle = vertex_of_triangle[:, :num_triangle]
 
     return vertex_of_triangle
 
-def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
-    """Building triangle mesh from ICON grid circumcenters and vertices
+def triangle_mesh_circ_vert(clon: np.ndarray, clat: np.ndarray,
+                            hsurf: np.ndarray, vlon: np.ndarray,
+                            vlat: np.ndarray, cells_of_vertex: np.ndarray) \
+                                -> tuple:
+    """Build triangle mesh from ICON grid cell circumcenters and vertices
+    (elevation at vertices is computed as mean from adjacent cell
+    circumcenters; triangulation is unique and artefacts are reduced)
 
     Parameters
     ----------
@@ -146,7 +169,7 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
         (number of ICON cells) [rad]
     hsurf : ndarray of float
         Array with elevation of ICON cell circumcenters
-        (number of ICON cells) [rad]
+        (number of ICON cells) [m]
     vlon : ndarray of double
         Array with longitude of ICON cell vertices
         (number of ICON vertices) [rad]
@@ -154,22 +177,27 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
         Array with latitude of ICON cell vertices
         (number of ICON vertices) [rad]
     cells_of_vertex : ndarray of int
-        Array with indices of ICON cells adjacent to ICON vertices. Indices
-        start with 1 according to Fortran (6, number of ICON vertices)
+        Array with indices of ICON cells adjacent to ICON vertices.
 
     Returns
     -------
     vertex_of_triangle : ndarray of int
-        Array with indices of triangle vertices (3, number of triangles)"""
+        Array with indices of triangle vertices (clockwise order)
+        (3, number of triangles)
+    clon_ext : ndarray of double
+        Extended array with longitude of ICON cell circumcenters [rad]
+    clat_ext : ndarray of double
+        Extended array with latitude of ICON cell circumcenters [rad]
+    hsurf_ext : ndarray of float
+        Extended array with elevation [m]"""
 
     num_vertex = vlon.size
     vertex_of_triangle = np.zeros((3, num_vertex * 6), dtype=np.int32)
     angles = np.empty(6)
-    clon_ext = np.append(clon, np.empty(num_vertex, dtype=clon.dtype) * np.nan)
-    clat_ext = np.append(clat, np.empty(num_vertex, dtype=clat.dtype) * np.nan)
-    hsurf_ext = np.append(hsurf, np.empty(num_vertex, dtype=hsurf.dtype)
-                          * np.nan)
-    # -> allocate arrays with maximal possible size...
+    clon_ext = np.append(clon, np.empty(num_vertex, dtype=clon.dtype))
+    clat_ext = np.append(clat, np.empty(num_vertex, dtype=clat.dtype))
+    hsurf_ext = np.append(hsurf, np.empty(num_vertex, dtype=hsurf.dtype))
+    # allocate arrays with maximal possible size
     num_triangle = 0
     ind_add = clon.size
     ind = np.array([0, 1, 2, 3, 4, 5, 0], dtype=np.int32)
@@ -181,29 +209,28 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
             if (ind_cell != -2):
                 angle = np.arctan2(clon[ind_cell] - vlon[ind_vertex],
                                    clat[ind_cell] - vlat[ind_vertex])
+                # clockwise angle from positive latitude-axis (y-axis)
                 if (angle < 0.0):
                     angle += 2.0 * np.pi
                 angles[num_angles] = angle
                 num_angles += 1
                 hsurf_mean += hsurf[ind_cell]
         if (num_angles == 6):
-
-            # ICON grid vertices with elevation
             clon_ext[ind_add] = vlon[ind_vertex]
             clat_ext[ind_add] = vlat[ind_vertex]
             hsurf_ext[ind_add] = hsurf_mean / 6.0
-
             ind_sort = np.argsort(angles[:num_angles])
             for j in range(6):
-                vertex_of_triangle[:, num_triangle] = \
-                    np.array([cells_of_vertex[ind_sort[ind[j]], ind_vertex],
-                              cells_of_vertex[ind_sort[ind[j + 1]],
-                                              ind_vertex],
-                              ind_add])
+                vertex_of_triangle[0, num_triangle] \
+                    = cells_of_vertex[ind_sort[ind[j]], ind_vertex]
+                vertex_of_triangle[1, num_triangle] \
+                    = cells_of_vertex[ind_sort[ind[j + 1]], ind_vertex]
+                vertex_of_triangle[2, num_triangle] \
+                    = ind_add
                 num_triangle += 1
             ind_add += 1
-        if ind_vertex % 100_000 == 0:
-            print("First " + str(ind_vertex) + " triangles constructed")
+        if (ind_vertex + 1) % 100_000 == 0:
+            print("First " + str(ind_vertex + 1) + " triangles constructed")
     vertex_of_triangle = vertex_of_triangle[:, :num_triangle]
 
     return vertex_of_triangle, clon_ext[:ind_add], clat_ext[:ind_add], \
@@ -331,8 +358,10 @@ def construct_triangle_mesh_m2(clon, clat, hsurf, vlon, vlat, cells_of_vertex):
 # -----------------------------------------------------------------------------
 
 # Load grid information
-file_grid = "/scratch/mch/csteger/topo_comparison/" \
-    + "icon_grid_00005_R19B09_DOM02.nc"
+file_grid = "/oprusers/osm/opr/data/grid_descriptions/" \
+    + "icon_grid_0001_R19B08_mch.nc"  # 1 km
+# file_grid = "/store_new/mch/msopr/glori/glori-ch500-nested/grid/" \
+#     + "icon_grid_00005_R19B09_DOM02.nc"  # 500 m
 ds = xr.open_dataset(file_grid)
 clon = ds["clon"].values  # (num_cell; float64)
 clat = ds["clat"].values  # (num_cell; float64)
@@ -345,19 +374,25 @@ grid_root = ds.attrs["grid_root"]  # (n)
 ds.close()
 
 # Load elevation of cell circumcenters
-file_topo = "/scratch/mch/csteger/output_extpar/i05/" \
-    + "external_parameter_icon_grid_00005_R19B09_DOM02.nc"
-ds = xr.open_dataset(file_topo)
+file_extpar = "/scratch/mch/csteger/ExtPar/output/" \
+    + "extpar_icon_grid_0001_R19B08_mch_copernicus.nc"  # 1 km
+# file_extpar = "/scratch/mch/csteger/ExtPar/output/" \
+#     + "extpar_icon_grid_00005_R19B09_DOM02_copernicus.nc"  # 500 m
+ds = xr.open_dataset(file_extpar)
 hsurf = ds["topography_c"].values.squeeze()  # (num_cell)
 horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
 skyview_old = ds["SKYVIEW"].values.squeeze()  # (num_cell)
 ds.close()
 
+# Ensure consistency of input grid and topography
+if (clon.size != hsurf.size):
+    raise ValueError("Inconsistent number of cells in grid and topography")
+
 # Further settings
-# nhori = 24
-# refine_factor = 10
-nhori = 240
-refine_factor = 1
+nhori = 24
+refine_factor = 10
+# nhori = 240
+# refine_factor = 1
 svf_type = 1   # 0, 1, 2
 ray_org_elev = 0.1
 
@@ -443,6 +478,26 @@ for grid_type in range(2):
     print("Sky view factor range [-]: %.8f" % np.min(skyview)
         + ", %.8f" % np.max(skyview))
 
+# Create new EXTPAR file with ray-tracing based terrain horizon and SVF
+grid_type = 1
+ds = xr.open_dataset(file_extpar)
+# ----------------- check correlation -----------------------------------------
+# plt.figure()
+# plt.scatter(horizon_old.ravel()[::20], horizon_gt[grid_type].ravel()[::20])
+# plt.show()
+# plt.figure()
+# plt.scatter(skyview_old.ravel()[::5], skyview_gt[grid_type].ravel()[::5])
+# plt.show()
+# -----------------------------------------------------------------------------
+ds["HORIZON"].values[:] = horizon_gt[grid_type]
+ds["SKYVIEW"].values[:] = skyview_gt[grid_type]
+ds.to_netcdf(file_extpar[:-3] + "_ray.nc")
+# Check that really overwritten
+ds = xr.open_dataset(file_extpar[:-3] + "_ray.nc")
+print(np.all(ds["HORIZON"].values == horizon_gt[grid_type]))
+print(np.all(ds["SKYVIEW"].values == skyview_gt[grid_type]))
+ds.close()
+
 ###############################################################################
 # Check and compare terrain horizon and sky view factor
 ###############################################################################
@@ -485,12 +540,13 @@ plt.show()
 
 # Check terrain horizon for specific (triangle) cell
 grid_type = 1  # used for plotting grid
-ind = 1909971
-# real data, 2km, ind = 682451 -> pronounced difference between grid types!
-# MeteoSwiss, 500m, ind=1901633, 1909971
+# all below indices for 500 m grid!
+ind = 1909971  # best so far (Mattertal)
+# ind = 1901633  # 2nd (Lauterbrunnental)
+# ind = np.random.choice(np.where(skyview_gt[grid_type] < 0.8)[0])
 azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])
-plt.figure(figsize=(15, 5))
+fig = plt.figure(figsize=(15, 5))
 # ---------------------------- Mask for triangles -----------------------------
 dist_search = 40_000  # search distance for horizon [m]
 if grid_type == 0:
@@ -516,13 +572,22 @@ triangles = mpl.tri.Triangulation(
     phi, theta, vertex_of_triangle_gt[grid_type][:, mask].transpose())
 plt.triplot(triangles, color="black", linewidth=0.5)
 # -----------------------------------------------------------------------------
-plt.plot(azim_old, horizon_old[:, ind], label="old", color="red", lw=2.5)
+plt.plot(azim_old, horizon_old[:, ind], label="current", color="red", lw=2.5)
 plt.plot(azim, horizon_gt[0][:, ind], label="Ray tracing (grid_type = 0)",
          color="royalblue", lw=1.5, ls="--")
 plt.plot(azim, horizon_gt[1][:, ind], label="Ray tracing (grid_type = 1)",
          color="royalblue", lw=2.5)
-plt.axis((0.0, 360.0, 0.0, 50.0))
+hori_all = np.hstack((horizon_old[:, ind], horizon_gt[0][:, ind],
+                      horizon_gt[1][:, ind]))
+plt.axis((0.0, 360.0, 0.0, hori_all.max() * 1.05))
 plt.legend(fontsize=12, frameon=False)
 plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
-plt.show()
+txt = "Latitude: %.3f" % np.rad2deg(clat[ind]) \
+    + "$^{\circ}$, longitude: %.3f" % np.rad2deg(clon[ind]) \
+    + "$^{\circ}$, elevation: %.0f" % hsurf[ind] + " m"
+plt.title(txt, fontsize=12, loc="left")
+# plt.show()
+plt.savefig("/scratch/mch/csteger/HORAYZON_extpar/"
+            + "horizon_ind_" + str(ind) + ".png", dpi=300)
+plt.close()
