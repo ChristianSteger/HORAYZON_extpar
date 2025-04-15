@@ -38,7 +38,7 @@ os.environ["CC"] = compiler
 
 setup(ext_modules=cythonize(Extension(
            "horizon_svf",
-           sources=["horizon_svf.pyx", "horizon_svf_comp.cpp"],
+           sources=["horizon_svf.pyx", "mo_lradtopo_horayzon.cpp"],
            include_dirs=include_dirs_cpp,
            extra_objects=extra_objects_cpp,
            extra_compile_args=extra_compile_args,

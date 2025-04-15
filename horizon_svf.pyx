@@ -1,68 +1,72 @@
 cimport numpy as np
 import numpy as np
 
-cdef extern from "horizon_svf_comp.h":
-    void horizon_svf_comp(double* clon, double* clat, float* hsurf,
-                          int num_cell,
+cdef extern from "mo_lradtopo_horayzon.h":
+    void horizon_svf_comp(double* clon, double* clat, double* hsurf,
                           double* vlon, double* vlat,
-                          int num_vertex,
                           np.npy_int32* cells_of_vertex,
-                          float* horizon, float* skyview,
-                          int nhori,
-                          int refine_factor, int svf_type,
-                          int grid_type, double ray_org_elev)
+                          double* horizon, double* skyview,
+                          int num_cell, int num_vertex, int num_hori,
+                          int grid_type, double dist_search,
+                          double ray_org_elev, int refine_factor,
+                          int svf_type)
 
 # Interface for Python function
 def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
                         np.ndarray[np.float64_t, ndim = 1] clat,
-                        np.ndarray[np.float32_t, ndim = 1] hsurf,
+                        np.ndarray[np.float64_t, ndim = 1] hsurf,
                         np.ndarray[np.float64_t, ndim = 1] vlon,
                         np.ndarray[np.float64_t, ndim = 1] vlat,
                         np.ndarray[np.int32_t, ndim = 2] cells_of_vertex,
-                        int nhori,
-                        int refine_factor,
-                        int svf_type,
+                        int num_hori,
                         int grid_type,
-                        float ray_org_elev):
+                        double dist_search,
+                        double ray_org_elev,
+                        int refine_factor,
+                        int svf_type):
     """Compute the terrain horizon and sky view factor.
 
     Parameters
     ----------
     clon : ndarray of double
-        Array with longitude of ICON cell circumcenters
+        Array with longitude of ICON grid cell circumcenters
         (number of ICON cells) [rad]
     clat : ndarray of double
-        Array with latitude of ICON cell circumcenters
+        Array with latitude of ICON grid cell  circumcenters
         (number of ICON cells) [rad]
-    hsurf : ndarray of float
-        Array with elevation of ICON cell circumcenters
+    hsurf : ndarray of double
+        Array with elevation of ICON grid cell  circumcenters
         (number of ICON cells) [rad]
     vlon : ndarray of double
-        Array with longitude of ICON cell vertices
+        Array with longitude of ICON grid cell vertices
         (number of ICON vertices) [rad]
     vlat : ndarray of double
-        Array with latitude of ICON cell vertices
+        Array with latitude of ICON grid cell vertices
         (number of ICON vertices) [rad]
     cells_of_vertex : ndarray of int
         Array with indices of ICON cells adjacent to ICON vertices. Indices
         start with 1 according to Fortran (6, number of ICON vertices)
-    nhori : int
+    num_hori : int
         Number of terrain horizon sampling directions
+    grid_type : int
+        Triangle mesh construction method
+        - 0: Build triangle mesh solely from ICON grid cell circumcenters
+             (non-unique triangulation of hexa- and pentagons; relatively
+             long triangle edges can cause artefacts in horizon computation)
+        - 1: Build triangle mesh from ICON grid cell circumcenters and vertices
+             (elevation at vertices is computed as mean from adjacent cell
+             circumcenters; triangulation is unique and artefacts are reduced)
+    dist_search : double
+        Radial search distance for horizon computation [m]
+    ray_org_elev : double
+        Vertical elevation of ray origin above surface [m]
     refine_factor : int
-        Refinement factor that subdivides 'nhori' for more robust results
+        Refinement factor that subdivides 'num_hori' for more robust results
     svf_type : int
         Method for computing the Sky View Factor (SVF)
             0: Visible sky fraction; pure geometric skyview-factor
             1: SVF for horizontal surface; geometric scaled with sin(horizon)
             2: ?; geometric scaled with sin(horizon)**2
-    grid_type : int
-        Triangle mesh construction method
-            0: "Building triangle mesh solely from ICON grid circumcenters
-               (-> ambiguous triangulation)
-            1: Building triangle mesh from ICON grid circumcenters and vertices
-               (-> unique triangulation)
-    ray_org_elev : double
-        Vertical elevation of ray origin above surface [metre]
 
     Returns
     -------
@@ -84,33 +88,37 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
     if not np.all((cells_of_vertex >= 1) & (cells_of_vertex <= clon.size)
         | (cells_of_vertex == -1)):
         raise ValueError("Indices of 'cells_of_vertex' out of range")
-    if (nhori < 4) or (nhori > 1440):
-        raise ValueError("'nhori' must be in the range [4, 1440]")
+    if (num_hori < 4) or (num_hori > 1440):
+        raise ValueError("'num_hori' must be in the range [4, 1440]")
+    if (grid_type < 0) or (grid_type > 1):
+        raise ValueError("'grid_type' must be in the range [0, 1]")
+    if (dist_search < 1_000.0) or (dist_search > 500_000.0):
+        raise ValueError("'dist_search' must be in the range " \
+        + "[1'000, 500'000] km")
+    if ray_org_elev < 0.1:
+        raise TypeError("Minimal allowed value for 'ray_org_elev' is 0.1 m")
     if (refine_factor < 1) or (refine_factor > 50):
         raise ValueError("'refine_factor' must be in the range [1, 50]")
     if (svf_type < 0) or (svf_type > 2):
         raise ValueError("'svf_type' must be in the range [0, 2]")
-    if ray_org_elev < 0.1:
-        raise TypeError("Minimal allowed value for 'ray_org_elev' is 0.1 m")
 
     # Allocate array for output
-    cdef np.ndarray[np.float32_t, ndim = 2, mode = "c"] \
-        horizon = np.empty((nhori, clon.size), dtype=np.float32)
-    cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] \
-        skyview = np.empty(clon.size, dtype=np.float32)
+    cdef np.ndarray[np.float64_t, ndim = 2, mode = "c"] \
+        horizon = np.empty((num_hori, clon.size), dtype=np.float64)
+    cdef np.ndarray[np.float64_t, ndim = 1, mode = "c"] \
+        skyview = np.empty(clon.size, dtype=np.float64)
 
     # Ensure that passed arrays are contiguous in memory
     cells_of_vertex = np.ascontiguousarray(cells_of_vertex)
 
     # Call C++ function and pass arguments
     horizon_svf_comp(&clon[0], &clat[0], &hsurf[0],
-                     clon.size,
                      &vlon[0], &vlat[0],
-                     vlon.size,
                      &cells_of_vertex[0, 0],
                      &horizon[0, 0], &skyview[0],
-                     nhori,
-                     refine_factor, svf_type,
-                     grid_type, ray_org_elev)
+                     clon.size, vlon.size, num_hori,
+                     grid_type, dist_search,
+                     ray_org_elev, refine_factor,
+                     svf_type)
 
     return horizon, skyview

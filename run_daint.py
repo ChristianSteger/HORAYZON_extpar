@@ -44,7 +44,7 @@ hsurf = ds["HSURF"].values.squeeze()  # (num_cell)
 ds.close()
 
 # Further settings
-nhori = 24
+num_hori = 24
 refine_factor = 10
 svf_type = 3
 
@@ -67,7 +67,7 @@ for i in ind_vertices_outer:
 t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
                                        clon, clat, (vertex_of_cell + 1),
-                                       nhori, refine_factor, svf_type)
+                                       num_hori, refine_factor, svf_type)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
 
 # Check range of computes values

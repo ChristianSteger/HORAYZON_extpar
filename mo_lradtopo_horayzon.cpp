@@ -118,7 +118,7 @@ std::vector<int> sort_index(std::vector<double>& values){
 //#############################################################################
 
 std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
-    float* elevation, int num_point, double rad_earth){
+    double* elevation, int num_point, double rad_earth){
 
     /*Transformation of geographic longitude/latitude to earth-centered,
     earth-std::fixed (ECEF) coordinates. Assume spherical Earth.
@@ -129,7 +129,7 @@ std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
         Array with geographic longitude [rad]
     lat : array of double
         Array with geographic latitude [rad]
-    elevation : array of float
+    elevation : array of double
         Array with elevation above sphere [m]
     num_point : int
         Number of points
@@ -527,18 +527,16 @@ double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
 // Main function
 //#############################################################################
 
-void horizon_svf_comp(double* clon, double* clat, float* hsurf,
-    int num_cell,
+void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     double* vlon, double* vlat,
-    int num_vertex,
     int* cells_of_vertex,
-    float* horizon, float* skyview,
-    int azim_num,
-    int refine_factor, int svf_type,
-    int grid_type, double ray_org_elev){
+    double* horizon, double* skyview,
+    int num_cell, int num_vertex, int azim_num,
+    int grid_type, double dist_search_dp,
+    double ray_org_elev, int refine_factor,
+    int svf_type){
 
     // Settings
-    float dist_search = 50000;  // horizon search distance [m]
     double hori_acc = deg2rad(0.25);  // horizon accuracy [deg]
     double elev_ang_thresh = deg2rad(-85.0);
     // threshold angle for sampling in negative elevation direction [rad]
@@ -550,6 +548,9 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     // Constants
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
 
+    // Type casting
+    float dist_search = (float)dist_search_dp;
+
     std::cout << "------------------------------------------------------------"
         << "-------------------" << std::endl;
     std::cout << "Horizon and SVF computation with Intel Embree (v0.1)"
@@ -558,7 +559,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
         << "-------------------" << std::endl;
 
     // Print settings
-    std::cout << "nhori: " << azim_num << std::endl;
+    std::cout << "num_hori: " << azim_num << std::endl;
     std::cout << "refine_factor: " << refine_factor << std::endl;
     std::cout << "svf_type: " << svf_type << std::endl;
     std::cout << "ray_org_elev: " << ray_org_elev << std::endl;
@@ -579,10 +580,10 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
     int ind_cov;
     std::vector<double> clon_ext;
     std::vector<double> clat_ext;
-    std::vector<float> hsurf_ext;
+    std::vector<double> hsurf_ext;
     if (grid_type == 0) {
-        std::cout << "Building triangle mesh solely from ICON grid "
-            << "circumcenters\n (-> ambiguous triangulation)" << std::endl;
+        std::cout << "Build triangle mesh solely from ICON grid cell"
+            << " circumcenters\n (non-unique triangulation)" << std::endl;
         int ind_1, ind_2;
         for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
             std::vector<double> angles;
@@ -620,8 +621,8 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
             }
         }
     }  else {
-        std::cout << "Building triangle mesh from ICON grid circumcenters and"
-            << " vertices\n(-> unique triangulation)" << std::endl;
+        std::cout << "Build triangle mesh from ICON grid cell circumcenters"
+            << " and vertices\n (unique triangulation)" << std::endl;
         for (int i = 0; i < num_cell; i++){
             clon_ext.push_back(clon[i]);
             clat_ext.push_back(clat[i]);
@@ -632,7 +633,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
         for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
             std::vector<double> angles;
             angles.reserve(6);
-            float hsurf_mean = 0.0;
+            double hsurf_mean = 0.0;
             for (int j = 0; j < 6; j++){
                 ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
                 // ensure that 2-dimensional array 'cells_of_vertex' correctly
@@ -808,7 +809,7 @@ void horizon_svf_comp(double* clon, double* clat, float* hsurf,
             for(int k = 0; k < refine_factor; k++){
                 horizon_mean += horizon_cell[(j * refine_factor) + k];
             }
-            horizon[(j * num_cell) + i] = (float)(rad2deg(horizon_mean)
+            horizon[(j * num_cell) + i] = (rad2deg(horizon_mean)
                 / (double)refine_factor);
         }
 

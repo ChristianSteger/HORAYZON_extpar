@@ -182,42 +182,46 @@ def triangle_mesh_circ_vert(clon: np.ndarray, clat: np.ndarray,
 # Test functions
 # -----------------------------------------------------------------------------
 
-# Load grid information
-ds = xr.open_dataset(path_icon + "EXTPAR_test/icon_grid_DOM01.nc")
-clon = ds["clon"].values
-clat = ds["clat"].values
-vlon = ds["vlon"].values
-vlat = ds["vlat"].values
-cells_of_vertex = ds["cells_of_vertex"].values - 1 # -2: no adjacent cell
-# parent_cell_index = ds["parent_cell_index"].values
-vertex_of_cell = ds["vertex_of_cell"].values - 1
-ds.close()
+if __name__ == "__main__":
 
-# Load elevation of cell circumcenters
-ds = xr.open_dataset(path_icon + "EXTPAR_test/"
-                     + "external_parameter_icon_d2_PR273.nc")
-hsurf = ds["topography_c"].values
-ds.close()
+    # Load grid information
+    ds = xr.open_dataset(path_icon + "EXTPAR_test/icon_grid_DOM01.nc")
+    clon = ds["clon"].values
+    clat = ds["clat"].values
+    vlon = ds["vlon"].values
+    vlat = ds["vlat"].values
+    cells_of_vertex = ds["cells_of_vertex"].values - 1 # -2: no adjacent cell
+    # parent_cell_index = ds["parent_cell_index"].values
+    vertex_of_cell = ds["vertex_of_cell"].values - 1
+    ds.close()
 
-# Generate triangle meshes
-vertex_of_triangle_circ \
-    = triangle_mesh_circ(clon, clat, vlon, vlat, cells_of_vertex)
-vertex_of_triangle_circ_vert, clon_ext, clat_ext, hsurf_ext = \
-    triangle_mesh_circ_vert(clon, clat, hsurf, vlon, vlat, cells_of_vertex)
+    # Load elevation of cell circumcenters
+    ds = xr.open_dataset(path_icon + "EXTPAR_test/"
+                        + "external_parameter_icon_d2_PR273.nc")
+    hsurf = ds["topography_c"].values
+    ds.close()
 
-# Plot meshes
-plt.figure()
-triangles = tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
-                                  vertex_of_cell.transpose())
-plt.triplot(triangles, color="black", lw=0.1)
-triangles = tri.Triangulation(np.rad2deg(clon), np.rad2deg(clat),
-                                  vertex_of_triangle_circ.transpose())
-plt.triplot(triangles, color="green", lw=0.1)
-triangles = tri.Triangulation(np.rad2deg(clon_ext), np.rad2deg(clat_ext),
-                                  vertex_of_triangle_circ_vert.transpose())
-plt.triplot(triangles, color="red", lw=0.1)
-file_plot = path_plot + "triangle_meshes.png"
-plt.savefig(file_plot, dpi=600)
-plt.close()
+    # Generate triangle meshes
+    vertex_of_triangle_circ \
+        = triangle_mesh_circ(clon, clat, vlon, vlat, cells_of_vertex)
+    vertex_of_triangle_circ_vert, clon_ext, clat_ext, hsurf_ext = \
+        triangle_mesh_circ_vert(clon, clat, hsurf, vlon, vlat, cells_of_vertex)
 
-os.remove(file_plot)
+    # Plot meshes
+    linewidth = 0.5 # 0.1
+    plt.figure()
+    triangles = tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
+                                    vertex_of_cell.transpose())
+    plt.triplot(triangles, color="black", lw=linewidth)
+    triangles = tri.Triangulation(np.rad2deg(clon), np.rad2deg(clat),
+                                    vertex_of_triangle_circ.transpose())
+    plt.triplot(triangles, color="green", lw=linewidth)
+    triangles = tri.Triangulation(np.rad2deg(clon_ext), np.rad2deg(clat_ext),
+                                    vertex_of_triangle_circ_vert.transpose())
+    plt.triplot(triangles, color="red", lw=linewidth)
+    file_plot = path_plot + "triangle_meshes.png"
+    plt.show()
+    # plt.savefig(file_plot, dpi=600)
+    # plt.close()
+
+    # os.remove(file_plot)
