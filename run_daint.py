@@ -66,7 +66,7 @@ for i in ind_vertices_outer:
 
 t_beg = time.perf_counter()
 horizon, skyview = horizon_svf_comp_py(vlon, vlat, topography_v,
-                                       clon, clat, (vertex_of_cell + 1),
+                                       clon, clat, vertex_of_cell,
                                        num_hori, refine_factor, svf_type)
 print("Total elapsed time: %.5f" % (time.perf_counter() - t_beg) + " s")
 

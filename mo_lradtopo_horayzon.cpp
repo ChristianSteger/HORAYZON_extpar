@@ -568,11 +568,6 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     // Pre-processing of data (coordinate transformation, etc.)
     // ------------------------------------------------------------------------
 
-    // Adjust indices (Fortran -> C; start with index 0)
-    for (int i = 0; i < (num_vertex * 6); i++){
-        cells_of_vertex[i] -= 1;  // -> 'empty values' are set to -2
-    }
-
     // Construct triangle mesh (-> use ICON circumcenters as triangle vertices)
     auto start_mesh = std::chrono::high_resolution_clock::now();
     std::vector<int> vertex_of_triangle;

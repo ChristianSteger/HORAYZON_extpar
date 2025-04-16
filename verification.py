@@ -162,10 +162,10 @@ gl.top_labels = False
 gl.right_labels = False
 plt.colorbar()
 plt.title("Elevation [m a.s.l]")
-# plt.show()
-file_plot = path_plot + "ICON_grid_topo.png"
-plt.savefig(file_plot , dpi=300)
-plt.close()
+plt.show()
+# file_plot = path_plot + "ICON_grid_topo.png"
+# plt.savefig(file_plot , dpi=300)
+# plt.close()
 
 # os.remove(file_plot)
 
@@ -176,7 +176,7 @@ plt.close()
 # Settings
 num_hori = 24 # 240
 dist_search = 50_000.0 #  horizon search distance [m]
-ray_org_elev = 0.2 # 0.1, 0.2
+ray_org_elev = 0.2 # 0.1, 0.2 [m]
 refine_factor = 10 # 1
 svf_type = 2 # 0, 1, 2
 
@@ -219,7 +219,7 @@ for grid_type in range(2):
     horizon, skyview = horizon_svf_comp_py(
         clon, clat, hsurf.astype(np.float64),
         vlon, vlat,
-        (cells_of_vertex + 1),
+        cells_of_vertex,
         num_hori, grid_type, dist_search,
         ray_org_elev, refine_factor,
         svf_type)

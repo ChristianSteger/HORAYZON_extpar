@@ -36,7 +36,7 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
         (number of ICON cells) [rad]
     hsurf : ndarray of double
         Array with elevation of ICON grid cell  circumcenters
-        (number of ICON cells) [rad]
+        (number of ICON cells) [m]
     vlon : ndarray of double
         Array with longitude of ICON grid cell vertices
         (number of ICON vertices) [rad]
@@ -45,7 +45,7 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
         (number of ICON vertices) [rad]
     cells_of_vertex : ndarray of int
         Array with indices of ICON cells adjacent to ICON vertices. Indices
-        start with 1 according to Fortran (6, number of ICON vertices)
+        start with 0 (6, number of ICON vertices)
     num_hori : int
         Number of terrain horizon sampling directions
     grid_type : int
@@ -85,8 +85,8 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
     if cells_of_vertex.shape[0] != 6:
         raise ValueError("First dimension of 'cells_of_vertex' must "
             + "have length 6")
-    if not np.all((cells_of_vertex >= 1) & (cells_of_vertex <= clon.size)
-        | (cells_of_vertex == -1)):
+    if not np.all((cells_of_vertex >= 0) & (cells_of_vertex <= clon.size - 1)
+        | (cells_of_vertex == -2)):
         raise ValueError("Indices of 'cells_of_vertex' out of range")
     if (num_hori < 4) or (num_hori > 1440):
         raise ValueError("'num_hori' must be in the range [4, 1440]")
