@@ -223,6 +223,8 @@ for grid_type in range(2):
         num_hori, grid_type, dist_search,
         ray_org_elev, refine_factor,
         svf_type)
+    horizon = horizon.astype(np.float32)
+    skyview = skyview.astype(np.float32)
     print("Total elapsed time: %.2f" % (time.perf_counter() - t_beg) + " s")
     print("Terrain horizon range [deg]: %.5f" % np.min(horizon)
         + ", %.5f" % np.max(horizon))
