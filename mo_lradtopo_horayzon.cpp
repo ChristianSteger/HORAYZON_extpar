@@ -404,7 +404,7 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
  *                        angle direction [rad].
  * @param scene Embree scene.
  * @param num_rays Number of rays casted.
- * @param horizon_cell Array to store the computed horizon [rad].
+ * @param horizon_cell Horizon array [rad].
  * @param horizon_cell_len Length of the horizon array.
  * @param azim_shift Azimuth shift for the first azimuth sector [rad].
  * @param sphere_normal Sphere normal at the point location [m].
@@ -481,20 +481,22 @@ void terrain_horizon(float ray_org_x, float ray_org_y, float ray_org_z,
 
 }
 
-//#############################################################################
-// Sky View Factor algorithms
-//#############################################################################
-
-// Function pointer
-double (*function_pointer)(double* horizon_cell, int horizon_cell_len,
-    double azim_shift);
-
-//-----------------------------------------------------------------------------
-// Visible sky fraction for horizontal plane (pure geometric sky view factor)
-//-----------------------------------------------------------------------------
-
-double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
-    double azim_shift){
+/**
+ * @brief Computes the sky view factor for a horizontally aligned plane.
+ *
+ * This function computes the sky view factor (SVF) for a horizontally aligned
+ * plane. Three methods are available:
+ * - Visible sky fraction / pure geometric sky view factor
+ * - Sky view factor / geometric scaled with sin(horizon)
+ * - Sky view factor additionally scaled with sin(horizon) /
+ *   geometric scaled with sin(horizon)**2
+ *
+ * @param horizon_cell Horizon array [rad].
+ * @param horizon_cell_len Length of the horizon array.
+ * @return Sky view factor [-].
+ */
+double (*function_pointer)(double* horizon_cell, int horizon_cell_len);
+double pure_geometric_svf(double* horizon_cell, int horizon_cell_len){
 
     double svf = 0.0;
     for(int i = 0; i < horizon_cell_len; i++){
@@ -503,13 +505,7 @@ double pure_geometric_svf(double* horizon_cell, int horizon_cell_len,
     svf /= (double)horizon_cell_len;
     return svf;
 }
-
-//-----------------------------------------------------------------------------
-// Sky view factor for horizontal plane (geometric scaled with sin(horizon))
-//-----------------------------------------------------------------------------
-
-double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
-    double azim_shift){
+double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len){
 
     double svf = 0.0;
     for(int i = 0; i < horizon_cell_len; i++){
@@ -518,14 +514,7 @@ double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len,
     svf /= (double)horizon_cell_len;
     return svf;
 }
-
-//-----------------------------------------------------------------------------
-// Sky view factor for horizontal plane additionally scaled with sin(horizon)
-// (geometric scaled with sin(horizon)**2)
-//-----------------------------------------------------------------------------
-
-double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
-    double azim_shift){
+double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len){
 
     double svf = 0.0;
     for(int i = 0; i < horizon_cell_len; i++){
@@ -536,9 +525,9 @@ double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len,
     return svf;
 }
 
-//#############################################################################
+//-----------------------------------------------------------------------------
 // Main function
-//#############################################################################
+//-----------------------------------------------------------------------------
 
 void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     double* vlon, double* vlat,
@@ -549,14 +538,12 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     double ray_org_elev, int refine_factor,
     int svf_type){
 
-    // Settings
-    double hori_acc = deg2rad(0.25);  // horizon accuracy [deg]
+    // Fixed settings
+    double hori_acc = deg2rad(0.25); // horizon accuracy [deg]
     double elev_ang_thresh = deg2rad(-85.0);
-    // threshold angle for sampling in negative elevation direction [rad]
-    // -> relevant for 'void sampling directions' at edge of mesh
-    // -> necessary requirement: (elev_ang_thresh - (2.0 * hori_acc)) > -90.0
-    // -> horizon values for the threshold case are:
-    //    elev_ang_thresh +/- hori_acc
+    // threshold for sampling in negative elevation angle direction [rad]
+    // - relevant for 'void sampling directions' at edge of mesh
+    // - necessary requirement: (elev_ang_thresh - (2.0 * hori_acc)) > -90.0
 
     // Constants
     double rad_earth = 6371229.0;  // ICON/COSMO earth radius [m]
@@ -566,7 +553,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
 
     std::cout << "------------------------------------------------------------"
         << "-------------------" << std::endl;
-    std::cout << "Horizon and SVF computation with Intel Embree (v0.1)"
+    std::cout << "Horizon and SVF computation with Intel Embree (v1.0)"
         << std::endl;
     std::cout << "------------------------------------------------------------"
         << "-------------------" << std::endl;
@@ -577,11 +564,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     std::cout << "svf_type: " << svf_type << std::endl;
     std::cout << "ray_org_elev: " << ray_org_elev << std::endl;
 
-    // ------------------------------------------------------------------------
-    // Pre-processing of data (coordinate transformation, etc.)
-    // ------------------------------------------------------------------------
-
-    // Construct triangle mesh (-> use ICON circumcenters as triangle vertices)
+    // Construct triangle mesh
     auto start_mesh = std::chrono::high_resolution_clock::now();
     std::vector<int> vertex_of_triangle;
     int ind_cell;
@@ -589,6 +572,11 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     std::vector<double> clon_ext;
     std::vector<double> clat_ext;
     std::vector<double> hsurf_ext;
+    for (int i = 0; i < num_cell; i++){
+        clon_ext.push_back(clon[i]);
+        clat_ext.push_back(clat[i]);
+        hsurf_ext.push_back(hsurf[i]);
+    }
     if (grid_type == 0) {
         std::cout << "Build triangle mesh solely from ICON grid cell"
             << " circumcenters\n (non-unique triangulation)" << std::endl;
@@ -601,6 +589,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
                 if (ind_cell != -2) {
                     double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
                                         clat[ind_cell] - vlat[ind_vertex]);
+                    // clockwise angle from positive latitude-axis (y-axis)
                     if (angle < 0.0) {
                         angle += 2.0 * M_PI;
                     }
@@ -629,11 +618,6 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     }  else {
         std::cout << "Build triangle mesh from ICON grid cell circumcenters"
             << " and vertices\n (unique triangulation)" << std::endl;
-        for (int i = 0; i < num_cell; i++){
-            clon_ext.push_back(clon[i]);
-            clat_ext.push_back(clat[i]);
-            hsurf_ext.push_back(hsurf[i]);
-        }
         int ind_add = num_cell;
         int ind[7] = {0, 1, 2, 3, 4, 5, 0};
         for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
@@ -645,6 +629,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
                 if (ind_cell != -2) {
                     double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
                                         clat[ind_cell] - vlat[ind_vertex]);
+                    // clockwise angle from positive latitude-axis (y-axis)
                     if (angle < 0.0) {
                         angle += 2.0 * M_PI;
                     }
@@ -653,7 +638,6 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
                 }
             }
             if (angles.size() == 6){
-                // ICON grid vertices with elevation
                 clon_ext.push_back(vlon[ind_vertex]);
                 clat_ext.push_back(vlat[ind_vertex]);
                 hsurf_ext.push_back(hsurf_mean / 6.0);
@@ -688,15 +672,10 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
 
     std::cout << "Convert spherical to ECEF coordinates" << std::endl;
 
-    // Triangle vertices (ECEF)
+    // Transformation from geographic to ECEF coordinates
     std::vector<geom_point> circumcenters;
-    if (grid_type == 0) {
-        circumcenters = lonlat2ecef(clon, clat, hsurf,
-            num_cell, rad_earth);
-    } else {
-        circumcenters = lonlat2ecef(clon_ext.data(),
-            clat_ext.data(), hsurf_ext.data(), clon_ext.size(), rad_earth);
-    }
+    circumcenters = lonlat2ecef(clon_ext.data(),
+        clat_ext.data(), hsurf_ext.data(), clon_ext.size(), rad_earth);
 
     // Sphere normals for circumcenters (ECEF)
     std::vector<geom_vector> sphere_normals(num_cell);
@@ -720,7 +699,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     lon_orig /= num_cell;
     lat_orig /= num_cell;
 
-    // In-place transformation from ECEF to ENU
+    // In-place transformation from ECEF to ENU coordinates
     std::cout << "Convert ECEF to ENU coordinates" << std::endl;
     std::cout << std::setprecision(4) << std::fixed;
     std::cout << "Origin of ENU coordinate system: " << rad2deg(lat_orig)
@@ -729,17 +708,10 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
     ecef2enu_vector(north_directions, lon_orig, lat_orig);
 
-    // ------------------------------------------------------------------------
-    // Building of BVH
-    // ------------------------------------------------------------------------
-
+    // Build bounding volume hierarchy (BVH)
     RTCDevice device = initializeDevice();
     RTCScene scene = initializeScene(device, vertex_of_triangle.data(),
         num_triangle, circumcenters);
-
-    // ------------------------------------------------------------------------
-    // Terrain horizon and sky view factor computation
-    // ------------------------------------------------------------------------
 
     // Evaluated trigonometric functions for rotation along azimuth/elevation
     // angle
@@ -763,7 +735,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     // Select algorithm for sky view factor computation
     std::cout << "Sky View Factor computation algorithm: ";
     if (svf_type == 0) {
-        std::cout << "pure geometric svf" << std::endl;
+        std::cout << "pure geometric SVF" << std::endl;
         function_pointer = pure_geometric_svf;
     } else if (svf_type == 1) {
         std::cout << "geometric scaled with sin(horizon)" << std::endl;
@@ -773,9 +745,6 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
         function_pointer = geometric_svf_scaled_2;
     }
 
-    // ------------------------------------------------------------------------
-    // Perform ray tracing
-    // ------------------------------------------------------------------------
     auto start_ray = std::chrono::high_resolution_clock::now();
     size_t num_rays = 0;
 
@@ -793,6 +762,8 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
             + sphere_normals[i].y * ray_org_elev);
         float ray_org_z = (float)(circumcenters[i].z
             + sphere_normals[i].z * ray_org_elev);
+        // The origin of the ray is slightly elevated to avoid potential ray-
+        // terrain collisions near the origin due to numerical imprecisions.
 
         double* horizon_cell = new double[horizon_cell_len];  // [rad]
 
@@ -824,8 +795,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
         }
 
         // Compute sky view factor and save in 'skyview' buffer
-        skyview[i] = (float)function_pointer(horizon_cell, horizon_cell_len,
-            azim_shift);
+        skyview[i] = function_pointer(horizon_cell, horizon_cell_len);
 
         delete[] horizon_cell;
 
