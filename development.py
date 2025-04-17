@@ -126,19 +126,19 @@ def triangle_mesh_circ_vert(clon: np.ndarray, clat: np.ndarray,
     vertex_of_triangle : ndarray of int
         Array with indices of triangle vertices (clockwise order)
         (3, number of triangles)
-    clon_ext : ndarray of double
-        Extended array with longitude of ICON cell circumcenters [rad]
-    clat_ext : ndarray of double
-        Extended array with latitude of ICON cell circumcenters [rad]
-    hsurf_ext : ndarray of float
-        Extended array with elevation [m]"""
+    vertex_lon : ndarray of double
+        Array with longitude of triangle vertices [rad]
+    vertex_lat : ndarray of double
+        Array with latitude of triangle vertices [rad]
+    vertex_hsurf : ndarray of float
+        Array with elevation of triangle vertices [m]"""
 
     num_vertex = vlon.size
     vertex_of_triangle = np.zeros((3, num_vertex * 6), dtype=np.int32)
     angles = np.empty(6)
-    clon_ext = np.append(clon, np.empty(num_vertex, dtype=clon.dtype))
-    clat_ext = np.append(clat, np.empty(num_vertex, dtype=clat.dtype))
-    hsurf_ext = np.append(hsurf, np.empty(num_vertex, dtype=hsurf.dtype))
+    vertex_lon = np.append(clon, np.empty(num_vertex, dtype=clon.dtype))
+    vertex_lat = np.append(clat, np.empty(num_vertex, dtype=clat.dtype))
+    vertex_hsurf = np.append(hsurf, np.empty(num_vertex, dtype=hsurf.dtype))
     # allocate arrays with maximal possible size
     num_triangle = 0
     ind_add = clon.size
@@ -158,9 +158,9 @@ def triangle_mesh_circ_vert(clon: np.ndarray, clat: np.ndarray,
                 num_angles += 1
                 hsurf_mean += hsurf[ind_cell]
         if (num_angles == 6):
-            clon_ext[ind_add] = vlon[ind_vertex]
-            clat_ext[ind_add] = vlat[ind_vertex]
-            hsurf_ext[ind_add] = hsurf_mean / 6.0
+            vertex_lon[ind_add] = vlon[ind_vertex]
+            vertex_lat[ind_add] = vlat[ind_vertex]
+            vertex_hsurf[ind_add] = hsurf_mean / 6.0
             ind_sort = np.argsort(angles[:num_angles])
             for j in range(6):
                 vertex_of_triangle[0, num_triangle] \
@@ -175,8 +175,8 @@ def triangle_mesh_circ_vert(clon: np.ndarray, clat: np.ndarray,
             print("First " + str(ind_vertex + 1) + " triangles constructed")
     vertex_of_triangle = vertex_of_triangle[:, :num_triangle]
 
-    return vertex_of_triangle, clon_ext[:ind_add], clat_ext[:ind_add], \
-        hsurf_ext[:ind_add]
+    return vertex_of_triangle, vertex_lon[:ind_add], vertex_lat[:ind_add], \
+        vertex_hsurf[:ind_add]
 
 # -----------------------------------------------------------------------------
 # Test functions
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     # Generate triangle meshes
     vertex_of_triangle_circ \
         = triangle_mesh_circ(clon, clat, vlon, vlat, cells_of_vertex)
-    vertex_of_triangle_circ_vert, clon_ext, clat_ext, hsurf_ext = \
+    vertex_of_triangle_circ_vert, vertex_lon, vertex_lat, vertex_hsurf = \
         triangle_mesh_circ_vert(clon, clat, hsurf, vlon, vlat, cells_of_vertex)
 
     # Plot meshes
@@ -216,8 +216,9 @@ if __name__ == "__main__":
     triangles = tri.Triangulation(np.rad2deg(clon), np.rad2deg(clat),
                                     vertex_of_triangle_circ.transpose())
     plt.triplot(triangles, color="green", lw=linewidth)
-    triangles = tri.Triangulation(np.rad2deg(clon_ext), np.rad2deg(clat_ext),
-                                    vertex_of_triangle_circ_vert.transpose())
+    triangles = tri.Triangulation(np.rad2deg(vertex_lon),
+                                  np.rad2deg(vertex_lat),
+                                  vertex_of_triangle_circ_vert.transpose())
     plt.triplot(triangles, color="red", lw=linewidth)
     file_plot = path_plot + "triangle_meshes.png"
     plt.show()
