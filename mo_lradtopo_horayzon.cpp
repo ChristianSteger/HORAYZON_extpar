@@ -277,6 +277,172 @@ void ecef2enu_vector(std::vector<geom_vector>& vectors, double lon_orig,
     }
 }
 
+/**
+ * @brief Builds the triangle mesh from the ICON grid.
+ *
+ * This function builds the triangle mesh from the ICON grid cell circumcenters
+ * (and vertices). Two options are available:
+ * - 0: Build triangle mesh solely from ICON grid cell circumcenters
+ *      (non-unique triangulation of hexa- and pentagons; relatively long
+ *      triangle edges can cause artefacts in horizon computation)
+ * - 1: Build triangle mesh from ICON grid cell circumcenters and vertices
+ *      (elevation at vertices is computed as mean from adjacent cell
+ *      circumcenters; triangulation is unique and artefacts are reduced)
+ *
+ * @param clon Longitude of ICON grid cell circumcenters [rad].
+ * @param clat Latitudes of ICON grid cell circumcenters [rad].
+ * @param hsurf Elevation of ICON grid cell circumcenters [m].
+ * @param vlon Longitude of ICON grid cell vertices [rad].
+ * @param vlat Latitudes of ICON grid cell vertices [rad].
+ * @param cells_of_vertex Indices of ICON cells adjacent to ICON vertices.
+ * @param num_cell Number of ICON grid cells.
+ * @param num_vertex Number of ICON grid vertices.
+ * @param grid_type Grid type option for building mesh.
+ * @param vertices Vertices of build triangle mesh.
+ * @param vertex_of_triangle Indices of triangles' vertices.
+ * @return Number of triangles in build mesh.
+ */
+int build_triangle_mesh(double* clon, double* clat, double* hsurf,
+    double* vlon, double* vlat, int* cells_of_vertex,
+    int num_cell, int num_vertex, int grid_type,
+    std::vector<geom_point>& vertices, std::vector<int>& vertex_of_triangle){
+    int ind_cell;
+    int ind_cov;
+    for (int i = 0; i < num_cell; i++){
+        vertices[i].x = clon[i];
+        vertices[i].y = clat[i];
+        vertices[i].z = hsurf[i];
+    }
+    if (grid_type == 0) {
+        std::cout << "Build triangle mesh solely from ICON grid cell"
+            << " circumcenters\n (non-unique triangulation)" << std::endl;
+        int ind_1, ind_2;
+        for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
+            std::vector<double> angles;
+            angles.reserve(6);
+            for (int j = 0; j < 6; j++){
+                ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
+                if (ind_cell != -2) {
+                    double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
+                                         clat[ind_cell] - vlat[ind_vertex]);
+                    // clockwise angle from positive latitude-axis (y-axis)
+                    if (angle < 0.0) {
+                        angle += 2.0 * M_PI;
+                    }
+                    angles.push_back(angle);
+                }
+            }
+            if (angles.size() >= 3){
+                // at least 3 vertices are needed to create one or multiple
+                // triangles(s) from the polygon
+                std::vector<int> ind_sort = sort_index(angles);
+                ind_1 = 1;
+                ind_2 = 2;
+                for (size_t j = 0; j < (angles.size() - 2); j++){
+                    ind_cov = num_vertex * ind_sort[0] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_cov = num_vertex * ind_sort[ind_1] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_1 ++;
+                    ind_cov = num_vertex * ind_sort[ind_2] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_2 ++;
+                    // add indices of triangle's vertices in clockwise order
+                }
+            }
+        }
+    }  else {
+        std::cout << "Build triangle mesh from ICON grid cell circumcenters"
+            << " and vertices\n (unique triangulation)" << std::endl;
+        int ind_add = num_cell;
+        int ind[7] = {0, 1, 2, 3, 4, 5, 0};
+        for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
+            std::vector<double> angles;
+            angles.reserve(6);
+            double hsurf_mean = 0.0;
+            for (int j = 0; j < 6; j++){
+                ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
+                if (ind_cell != -2) {
+                    double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
+                                         clat[ind_cell] - vlat[ind_vertex]);
+                    // clockwise angle from positive latitude-axis (y-axis)
+                    if (angle < 0.0) {
+                        angle += 2.0 * M_PI;
+                    }
+                    angles.push_back(angle);
+                    hsurf_mean += hsurf[ind_cell];
+                }
+            }
+            if (angles.size() == 6){
+                vertices.push_back({vlon[ind_vertex], vlat[ind_vertex],
+                                    hsurf_mean / 6.0});
+                std::vector<int> ind_sort = sort_index(angles);
+                for (int j = 0; j < 6; j++){
+                    ind_cov = num_vertex * ind_sort[ind[j]] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    ind_cov = num_vertex * ind_sort[ind[j + 1]] + ind_vertex;
+                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
+                    vertex_of_triangle.push_back(ind_add);
+                }
+                ind_add += 1;
+            }
+        }
+    }
+    int num_triangle = vertex_of_triangle.size() / 3;
+    std::cout << "Number of triangles in mesh: " << num_triangle << std::endl;
+    // temporary start --------------------------------------------------------
+    for (int i = 0; i < 3; i++){
+        long temp = 0;
+        for (int j = 0; j < num_triangle; j++){
+            temp += vertex_of_triangle[3 * j + i];
+        }
+        std::cout << "Sum over axis: " << temp << std::endl;
+    }
+    // temporary end ----------------------------------------------------------
+    return num_triangle;
+}
+
+/**
+ * @brief Computes the sky view factor for a horizontally aligned plane.
+ *
+ * This function computes the sky view factor (SVF) for a horizontally aligned
+ * plane. Three methods are available:
+ * - Visible sky fraction / pure geometric sky view factor
+ * - Sky view factor / geometric scaled with sin(horizon)
+ * - Sky view factor additionally scaled with sin(horizon) /
+ *   geometric scaled with sin(horizon)**2
+ *
+ * @param horizon_cell Horizon array [rad].
+ * @param horizon_cell_len Length of the horizon array.
+ * @return Sky view factor [-].
+ */
+double (*function_pointer)(double* horizon_cell, int horizon_cell_len);
+double pure_geometric_svf(double* horizon_cell, int horizon_cell_len){
+    double svf = 0.0;
+    for(int i = 0; i < horizon_cell_len; i++){
+        svf += (1.0 - sin(horizon_cell[i]));
+    }
+    svf /= (double)horizon_cell_len;
+    return svf;
+}
+double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len){
+    double svf = 0.0;
+    for(int i = 0; i < horizon_cell_len; i++){
+        svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])));
+    }
+    svf /= (double)horizon_cell_len;
+    return svf;
+}
+double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len){
+    double svf = 0.0;
+    for(int i = 0; i < horizon_cell_len; i++){
+        svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])
+            * sin(horizon_cell[i])));
+    }
+    svf /= (double)horizon_cell_len;
+    return svf;
+}
+
 //-----------------------------------------------------------------------------
 // Functions (Embree related)
 //-----------------------------------------------------------------------------
@@ -481,50 +647,6 @@ void terrain_horizon(float ray_org_x, float ray_org_y, float ray_org_z,
 
 }
 
-/**
- * @brief Computes the sky view factor for a horizontally aligned plane.
- *
- * This function computes the sky view factor (SVF) for a horizontally aligned
- * plane. Three methods are available:
- * - Visible sky fraction / pure geometric sky view factor
- * - Sky view factor / geometric scaled with sin(horizon)
- * - Sky view factor additionally scaled with sin(horizon) /
- *   geometric scaled with sin(horizon)**2
- *
- * @param horizon_cell Horizon array [rad].
- * @param horizon_cell_len Length of the horizon array.
- * @return Sky view factor [-].
- */
-double (*function_pointer)(double* horizon_cell, int horizon_cell_len);
-double pure_geometric_svf(double* horizon_cell, int horizon_cell_len){
-
-    double svf = 0.0;
-    for(int i = 0; i < horizon_cell_len; i++){
-        svf += (1.0 - sin(horizon_cell[i]));
-    }
-    svf /= (double)horizon_cell_len;
-    return svf;
-}
-double geometric_svf_scaled_1(double* horizon_cell, int horizon_cell_len){
-
-    double svf = 0.0;
-    for(int i = 0; i < horizon_cell_len; i++){
-        svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])));
-    }
-    svf /= (double)horizon_cell_len;
-    return svf;
-}
-double geometric_svf_scaled_2(double* horizon_cell, int horizon_cell_len){
-
-    double svf = 0.0;
-    for(int i = 0; i < horizon_cell_len; i++){
-        svf += (1.0 - (sin(horizon_cell[i]) * sin(horizon_cell[i])
-            * sin(horizon_cell[i])));
-    }
-    svf /= (double)horizon_cell_len;
-    return svf;
-}
-
 //-----------------------------------------------------------------------------
 // Main function
 //-----------------------------------------------------------------------------
@@ -553,114 +675,30 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
 
     std::cout << "------------------------------------------------------------"
         << "-------------------" << std::endl;
-    std::cout << "Horizon and SVF computation with Intel Embree (v1.0)"
+    std::cout << "Horizon and SVF computation with Intel Embree (v1.1)"
         << std::endl;
     std::cout << "------------------------------------------------------------"
         << "-------------------" << std::endl;
 
-    // Print settings
+    // temporary start --------------------------------------------------------
     std::cout << "num_hori: " << azim_num << std::endl;
+    std::cout << "grid_type: " << grid_type << std::endl;
+    std::cout << "dist_search: " << dist_search << std::endl;
+    std::cout << "ray_org_elev: " << ray_org_elev << std::endl;
     std::cout << "refine_factor: " << refine_factor << std::endl;
     std::cout << "svf_type: " << svf_type << std::endl;
-    std::cout << "ray_org_elev: " << ray_org_elev << std::endl;
+    std::cout << "hori_acc: " << hori_acc << std::endl;
+    std::cout << "elev_ang_thresh: " << elev_ang_thresh << std::endl;
+    // temporary end ----------------------------------------------------------
 
-    // Construct triangle mesh
+    // Build triangle mesh from ICON grid
     auto start_mesh = std::chrono::high_resolution_clock::now();
-    std::vector<int> vertex_of_triangle;
-    int ind_cell;
-    int ind_cov;
     std::vector<geom_point> vertices(num_cell);
-    for (int i = 0; i < num_cell; i++){
-        vertices[i].x = clon[i];
-        vertices[i].y = clat[i];
-        vertices[i].z = hsurf[i];
-    }
-    if (grid_type == 0) {
-        std::cout << "Build triangle mesh solely from ICON grid cell"
-            << " circumcenters\n (non-unique triangulation)" << std::endl;
-        int ind_1, ind_2;
-        for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
-            std::vector<double> angles;
-            angles.reserve(6);
-            for (int j = 0; j < 6; j++){
-                ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
-                if (ind_cell != -2) {
-                    double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
-                                         clat[ind_cell] - vlat[ind_vertex]);
-                    // clockwise angle from positive latitude-axis (y-axis)
-                    if (angle < 0.0) {
-                        angle += 2.0 * M_PI;
-                    }
-                    angles.push_back(angle);
-                }
-            }
-            if (angles.size() >= 3){
-                // at least 3 vertices are needed to create one or multiple
-                // triangles(s) from the polygon
-                std::vector<int> ind_sort = sort_index(angles);
-                ind_1 = 1;
-                ind_2 = 2;
-                for (size_t j = 0; j < (angles.size() - 2); j++){
-                    ind_cov = num_vertex * ind_sort[0] + ind_vertex;
-                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
-                    ind_cov = num_vertex * ind_sort[ind_1] + ind_vertex;
-                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
-                    ind_1 ++;
-                    ind_cov = num_vertex * ind_sort[ind_2] + ind_vertex;
-                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
-                    ind_2 ++;
-                    // add indices of triangle's vertices in clockwise order
-                }
-            }
-        }
-    }  else {
-        std::cout << "Build triangle mesh from ICON grid cell circumcenters"
-            << " and vertices\n (unique triangulation)" << std::endl;
-        int ind_add = num_cell;
-        int ind[7] = {0, 1, 2, 3, 4, 5, 0};
-        for (int ind_vertex = 0; ind_vertex < num_vertex; ind_vertex++){
-            std::vector<double> angles;
-            angles.reserve(6);
-            double hsurf_mean = 0.0;
-            for (int j = 0; j < 6; j++){
-                ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
-                if (ind_cell != -2) {
-                    double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
-                                         clat[ind_cell] - vlat[ind_vertex]);
-                    // clockwise angle from positive latitude-axis (y-axis)
-                    if (angle < 0.0) {
-                        angle += 2.0 * M_PI;
-                    }
-                    angles.push_back(angle);
-                    hsurf_mean += hsurf[ind_cell];
-                }
-            }
-            if (angles.size() == 6){
-                vertices.push_back({vlon[ind_vertex], vlat[ind_vertex],
-                                    hsurf_mean / 6.0});
-                std::vector<int> ind_sort = sort_index(angles);
-                for (int j = 0; j < 6; j++){
-                    ind_cov = num_vertex * ind_sort[ind[j]] + ind_vertex;
-                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
-                    ind_cov = num_vertex * ind_sort[ind[j + 1]] + ind_vertex;
-                    vertex_of_triangle.push_back(cells_of_vertex[ind_cov]);
-                    vertex_of_triangle.push_back(ind_add);
-                }
-                ind_add += 1;
-            }
-        }
-    }
-    int num_triangle = vertex_of_triangle.size() / 3;
-    std::cout << "Number of triangles in mesh: " << num_triangle << std::endl;
-    // temporary start --------------------------------------------------------
-    for (int i = 0; i < 3; i++){
-        long temp = 0;
-        for (int j = 0; j < num_triangle; j++){
-            temp += vertex_of_triangle[3 * j + i];
-        }
-        std::cout << "Sum over axis: " << temp << std::endl;
-    }
-    // temporary end --------------------------------------------------------
+    std::vector<int> vertex_of_triangle;
+    int num_triangle = build_triangle_mesh(clon, clat, hsurf,
+        vlon, vlat, cells_of_vertex,
+        num_cell, num_vertex, grid_type,
+        vertices, vertex_of_triangle);
     auto end_mesh = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> time_mesh = end_mesh - start_mesh;
     std::cout << std::setprecision(2) << std::fixed;

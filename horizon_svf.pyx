@@ -32,10 +32,10 @@ def horizon_svf_comp_py(np.ndarray[np.float64_t, ndim = 1] clon,
         Array with longitude of ICON grid cell circumcenters
         (number of ICON cells) [rad]
     clat : ndarray of double
-        Array with latitude of ICON grid cell  circumcenters
+        Array with latitude of ICON grid cell circumcenters
         (number of ICON cells) [rad]
     hsurf : ndarray of double
-        Array with elevation of ICON grid cell  circumcenters
+        Array with elevation of ICON grid cell circumcenters
         (number of ICON cells) [m]
     vlon : ndarray of double
         Array with longitude of ICON grid cell vertices
