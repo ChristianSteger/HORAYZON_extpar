@@ -24,6 +24,7 @@
 // Point in 3D space
 struct geom_point{
     double x, y, z;
+    // also used for geographic coordinates: lon (x), lat (y), elevation (z)
 };
 
 // Vector in 3D space
@@ -31,7 +32,7 @@ struct geom_vector{
     double x, y, z;
 };
 
-// Vertext (for Embree)
+// Vertex (for Embree)
 struct Vertex{
     float x, y, z;
 };
@@ -161,27 +162,26 @@ std::vector<int> sort_index(std::vector<double>& values){
 }
 
 /**
- * @brief Transforms geographic to ECEF coordinates.
+ * @brief Transforms geographic to ECEF coordinates in-place.
  *
  * This function transforms geographic longitude/latitude to earth-centered,
  * earth-fixed (ECEF) coordinates. A spherical Earth is assumed.
  *
- * @param lon Geographic longitudes [rad].
- * @param lat Geographic latitudes [rad].
- * @param elevation Elevations above sphere [m].
- * @param num_point Number of points.
+ * @param points Points (lon, lat elevation) in geographic coordinates
+ *               [rad, rad, m].
  * @param rad_earth Radius of Earth [m].
- * @return Points (x, y, z) in ECEF coordinates [m].
  */
-std::vector<geom_point> lonlat2ecef(double* lon, double* lat,
-    double* elevation, int num_point, double rad_earth){
-    std::vector<geom_point> points(num_point);
-    for (int i = 0; i < num_point; i++){
-        points[i].x = (rad_earth + elevation[i]) * cos(lat[i]) * cos(lon[i]);
-        points[i].y = (rad_earth + elevation[i]) * cos(lat[i]) * sin(lon[i]);
-        points[i].z = (rad_earth + elevation[i]) * sin(lat[i]);
-	}
-    return points;
+void lonlat2ecef(std::vector<geom_point>& points, double rad_earth){
+    for (size_t i = 0; i < points.size(); i++){
+        double sin_lon = sin(points[i].x);
+        double cos_lon = cos(points[i].x);
+        double sin_lat = sin(points[i].y);
+        double cos_lat = cos(points[i].y);
+        double elevation = points[i].z;
+        points[i].x = (rad_earth + elevation) * cos_lat * cos_lon;
+        points[i].y = (rad_earth + elevation) * cos_lat * sin_lon;
+        points[i].z = (rad_earth + elevation) * sin_lat;
+    }
 }
 
 /**
@@ -569,13 +569,11 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     std::vector<int> vertex_of_triangle;
     int ind_cell;
     int ind_cov;
-    std::vector<double> clon_ext;
-    std::vector<double> clat_ext;
-    std::vector<double> hsurf_ext;
+    std::vector<geom_point> vertices(num_cell);
     for (int i = 0; i < num_cell; i++){
-        clon_ext.push_back(clon[i]);
-        clat_ext.push_back(clat[i]);
-        hsurf_ext.push_back(hsurf[i]);
+        vertices[i].x = clon[i];
+        vertices[i].y = clat[i];
+        vertices[i].z = hsurf[i];
     }
     if (grid_type == 0) {
         std::cout << "Build triangle mesh solely from ICON grid cell"
@@ -588,7 +586,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
                 ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
                 if (ind_cell != -2) {
                     double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
-                                        clat[ind_cell] - vlat[ind_vertex]);
+                                         clat[ind_cell] - vlat[ind_vertex]);
                     // clockwise angle from positive latitude-axis (y-axis)
                     if (angle < 0.0) {
                         angle += 2.0 * M_PI;
@@ -628,7 +626,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
                 ind_cell = cells_of_vertex[num_vertex * j + ind_vertex];
                 if (ind_cell != -2) {
                     double angle = atan2(clon[ind_cell] - vlon[ind_vertex],
-                                        clat[ind_cell] - vlat[ind_vertex]);
+                                         clat[ind_cell] - vlat[ind_vertex]);
                     // clockwise angle from positive latitude-axis (y-axis)
                     if (angle < 0.0) {
                         angle += 2.0 * M_PI;
@@ -638,9 +636,8 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
                 }
             }
             if (angles.size() == 6){
-                clon_ext.push_back(vlon[ind_vertex]);
-                clat_ext.push_back(vlat[ind_vertex]);
-                hsurf_ext.push_back(hsurf_mean / 6.0);
+                vertices.push_back({vlon[ind_vertex], vlat[ind_vertex],
+                                    hsurf_mean / 6.0});
                 std::vector<int> ind_sort = sort_index(angles);
                 for (int j = 0; j < 6; j++){
                     ind_cov = num_vertex * ind_sort[ind[j]] + ind_vertex;
@@ -670,23 +667,17 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     std::cout << "Triangle mesh building: " << time_mesh.count() << " s"
         << std::endl;
 
-    std::cout << "Convert spherical to ECEF coordinates" << std::endl;
+    // In-place transformation from geographic to ECEF coordinates
+    lonlat2ecef(vertices, rad_earth);
 
-    // Transformation from geographic to ECEF coordinates
-    std::vector<geom_point> circumcenters;
-    circumcenters = lonlat2ecef(clon_ext.data(),
-        clat_ext.data(), hsurf_ext.data(), clon_ext.size(), rad_earth);
-
-    // Sphere normals for circumcenters (ECEF)
+    // Sphere normals and north vectors for ICON grid cell circumcenters (ECEF)
     std::vector<geom_vector> sphere_normals(num_cell);
     for (int i = 0; i < num_cell; i++){
-        sphere_normals[i].x = circumcenters[i].x / rad_earth;
-        sphere_normals[i].y = circumcenters[i].y / rad_earth;
-        sphere_normals[i].z = circumcenters[i].z / rad_earth;
+        sphere_normals[i].x = vertices[i].x / rad_earth;
+        sphere_normals[i].y = vertices[i].y / rad_earth;
+        sphere_normals[i].z = vertices[i].z / rad_earth;
     }
-
-    // North vectors for circumcenters (ECEF)
-    std::vector<geom_vector> north_directions = north_direction(circumcenters,
+    std::vector<geom_vector> north_directions = north_direction(vertices,
         sphere_normals, rad_earth);
 
     // Origin of ENU coordinate system
@@ -700,18 +691,17 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     lat_orig /= num_cell;
 
     // In-place transformation from ECEF to ENU coordinates
-    std::cout << "Convert ECEF to ENU coordinates" << std::endl;
     std::cout << std::setprecision(4) << std::fixed;
     std::cout << "Origin of ENU coordinate system: " << rad2deg(lat_orig)
         << " deg lat, "  << rad2deg(lon_orig) << " deg lon" << std::endl;
-    ecef2enu_point(circumcenters, lon_orig, lat_orig, rad_earth);
+    ecef2enu_point(vertices, lon_orig, lat_orig, rad_earth);
     ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
     ecef2enu_vector(north_directions, lon_orig, lat_orig);
 
     // Build bounding volume hierarchy (BVH)
     RTCDevice device = initializeDevice();
     RTCScene scene = initializeScene(device, vertex_of_triangle.data(),
-        num_triangle, circumcenters);
+        num_triangle, vertices);
 
     // Evaluated trigonometric functions for rotation along azimuth/elevation
     // angle
@@ -756,11 +746,11 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
         // Elevate origin for ray tracing by 'safety margin'
-        float ray_org_x = (float)(circumcenters[i].x
+        float ray_org_x = (float)(vertices[i].x
             + sphere_normals[i].x * ray_org_elev);
-        float ray_org_y = (float)(circumcenters[i].y
+        float ray_org_y = (float)(vertices[i].y
             + sphere_normals[i].y * ray_org_elev);
-        float ray_org_z = (float)(circumcenters[i].z
+        float ray_org_z = (float)(vertices[i].z
             + sphere_normals[i].z * ray_org_elev);
         // The origin of the ray is slightly elevated to avoid potential ray-
         // terrain collisions near the origin due to numerical imprecisions.
