@@ -6,7 +6,7 @@ Implement HORAYZON algorithm in pre-processing tool EXTPAR.
 
  Create Conda environment:
 ```bash
-conda create -n horayzon_extpar -c conda-forge embree tbb-devel cython numpy xarray netcdf4 matplotlib cartopy pyproj ipython
+conda create -n horayzon_extpar -c conda-forge embree tbb-devel cython numpy xarray netcdf4 matplotlib cartopy pyproj scipy ipython
 ```
 activate this environment, clone **HORAYON_extpar** and compile with:
 ```bash

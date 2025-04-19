@@ -10,10 +10,10 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 from matplotlib import style, rcParams, tri, colors
-from matplotlib.ticker import MaxNLocator
 import cartopy.crs as ccrs
 import cartopy.feature as feature
 from pyproj import Transformer
+from scipy.spatial import KDTree
 
 from development import triangle_mesh_circ, triangle_mesh_circ_vert
 
@@ -94,8 +94,8 @@ def observer_perspective(lon: np.ndarray, lat: np.ndarray,
 # file_extpar = "MeteoSwiss/extpar_icon_grid_00005_R19B09_DOM02.nc"
 
 # EXTPAR test domain DOM01
-file_grid = "EXTPAR_test/icon_grid_DOM01.nc" # ~2 km
-file_extpar = "EXTPAR_test/external_parameter_icon_d2_PR273.nc"
+# file_grid = "EXTPAR_test/icon_grid_DOM01.nc" # ~2 km
+# file_extpar = "EXTPAR_test/external_parameter_icon_d2_PR273.nc"
 
 # Domains from Brigitta
 # file_grid = "Brigitta/domain1_DOM01.nc" # ~1 km
@@ -104,8 +104,8 @@ file_extpar = "EXTPAR_test/external_parameter_icon_d2_PR273.nc"
 # file_extpar = "Brigitta/extpar_icon_grid_domain2_DOM02.nc"
 # file_grid = "Brigitta/domain3_DOM03.nc" # ~250 m
 # file_extpar = "Brigitta/extpar_icon_grid_domain3_DOM03.nc"
-# file_grid = "Brigitta/domain4_DOM04.nc" # ~125 m
-# file_extpar = "Brigitta/extpar_icon_grid_domain4_DOM04.nc"
+file_grid = "Brigitta/domain4_DOM04.nc" # ~125 m
+file_extpar = "Brigitta/extpar_icon_grid_domain4_DOM04.nc"
 # file_grid = "Brigitta/domain_switzerland_200m.nc" # ~200 m
 # file_extpar = "Brigitta/extpar_icon_grid_domain_switzerland_200m.nc"
 
@@ -162,10 +162,10 @@ gl.top_labels = False
 gl.right_labels = False
 plt.colorbar()
 plt.title("Elevation [m a.s.l]")
-plt.show()
-# file_plot = path_plot + "ICON_grid_topo.png"
-# plt.savefig(file_plot , dpi=300)
-# plt.close()
+# plt.show()
+file_plot = path_plot + "ICON_grid_topo.png"
+plt.savefig(file_plot , dpi=300)
+plt.close()
 
 # os.remove(file_plot)
 
@@ -181,6 +181,7 @@ refine_factor = 10 # 1
 svf_type = 2 # 0, 1, 2
 
 # Loop through two different grid types
+vertex_of_triangle_gt = {}
 for grid_type in range(2):
 
     # Construct triangle mesh
@@ -191,6 +192,7 @@ for grid_type in range(2):
         vertex_of_triangle, clon_ext, clat_ext, hsurf_ext \
             = triangle_mesh_circ_vert(clon, clat, hsurf, vlon, vlat,
                                         cells_of_vertex)
+    vertex_of_triangle_gt[grid_type] = vertex_of_triangle
     print(vertex_of_triangle.shape)
     print(vertex_of_triangle.sum(axis=1))
     # hash-like string to compare with C++ code
@@ -243,25 +245,46 @@ for grid_type in range(2):
     print(np.all(ds["SKYVIEW"].values == skyview))
     ds.close()
 
-###############################################################################  continue....
+###############################################################################
 # Check and compare terrain horizon and sky view factor
 ###############################################################################
 
+# Load data
+exp_all = {"extpar_old": file_extpar,
+           "grid_type_0": file_extpar[:-3] + f"_horayzon_gt_0.nc",
+           "grid_type_1": file_extpar[:-3] + f"_horayzon_gt_1.nc"}
+data_extpar = {}
+for i in exp_all.keys():
+    ds = xr.open_dataset(path_ige + exp_all[i])
+    data_extpar[i] = {"horizon": ds["HORIZON"].values,
+                      "svf": ds["SKYVIEW"].values}
+    ds.close()
+
+# -----------------------------------------------------------------------------
+# Map plot
+# -----------------------------------------------------------------------------
+
+# Settings
+# exp = "extpar_old"
+# exp = "grid_type_0"
+exp = "grid_type_1"
+# ------------------------------------
+name = "horizon"
+values = data_extpar[i]["horizon"][0, :]
+cmap = plt.get_cmap("afmhot_r")
+levels = np.arange(0.0, 37.5, 2.5)
+# ------------------------------------
+# name = "svf"
+# values = data_extpar[i]["svf"]
+# cmap = plt.get_cmap("YlGnBu_r")
+# levels = np.arange(0.85, 1.0, 0.005)
+# ------------------------------------
+
 # Map plot of terrain horizon or sky view factor
-grid_type = 1
-# values = skyview_old
-values = skyview_gt[grid_type]
-cmap = plt.get_cmap("YlGnBu_r")
-levels = np.arange(0.85, 1.0, 0.005)
-
-# values = horizon_gt[grid_type][0, :]
-# levels = np.arange(0.0, 37.5, 2.5)
-# cmap = plt.get_cmap("afmhot_r")
-
-norm = mpl.colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")
+norm = colors.BoundaryNorm(levels, ncolors=cmap.N, extend="both")
 plt.figure(figsize=(14, 8))
 ax = plt.axes(projection=ccrs.PlateCarree())
-triangles = mpl.tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
+triangles = tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
                                   vertex_of_cell.transpose())
 plt.tripcolor(triangles, values, cmap=cmap, norm=norm,
               edgecolors="black", linewidth=0.0)
@@ -274,26 +297,56 @@ gl = ax.gridlines(crs=ccrs.PlateCarree(), linewidth=1, color="black",
 gl.top_labels = False
 gl.right_labels = False
 plt.colorbar()
-# ----- click on specific cell in opened plot window to get index of cell -----
-for i in range(5):
-    pts = plt.ginput(1)
-    ind = np.argmin(np.sqrt((pts[0][0] - np.rad2deg(clon)) ** 2
-                            + (pts[0][1] - np.rad2deg(clat)) ** 2))
-    print(ind)
+# # ---- click on specific cell in opened plot window to get index of cell ----
+# for i in range(5):
+#     pts = plt.ginput(1)
+#     ind = np.argmin(np.sqrt((pts[0][0] - np.rad2deg(clon)) ** 2
+#                             + (pts[0][1] - np.rad2deg(clat)) ** 2))
+#     print(ind)
+# # ---------------------------------------------------------------------------
+# plt.show()
+file_plot = path_plot + name + "_" + exp + ".png"
+plt.savefig(file_plot , dpi=300)
+plt.close()
+
+# os.remove(file_plot)
+
 # -----------------------------------------------------------------------------
-plt.show()
+# Specific location
+# -----------------------------------------------------------------------------
+
+# Compute distances of grid cell circumcenter to triangle mesh border
+mask_border = np.any(cells_of_vertex == -2, axis=0)
+rad_e = 6371.0087714  # Earth radius [km]
+vx = rad_e * np.cos(vlat[mask_border]) * np.cos(vlon[mask_border])
+vy = rad_e * np.cos(vlat[mask_border]) * np.sin(vlon[mask_border])
+vz = rad_e * np.sin(vlat[mask_border])
+pts_tree = np.vstack((vx, vy, vz)).transpose()
+tree = KDTree(pts_tree)
+cx = rad_e * np.cos(clat) * np.cos(clon)
+cy = rad_e * np.cos(clat) * np.sin(clon)
+cz = rad_e * np.sin(clat)
+pts_query = np.vstack((cx, cy, cz)).transpose()
+dist, ind = tree.query(pts_query, k=1, workers=10)
+# euclidean distance (chord length) [km]
 
 # Check terrain horizon for specific (triangle) cell
 grid_type = 1  # used for plotting grid
-# all below indices for 500 m grid!
-ind = 1909971  # best so far (Mattertal)
+# ----------------- MeteoSwiss 500 m resolution grid --------------------------
+# ind = 1909971  # best so far (Mattertal)
 # ind = 1901633  # 2nd (Lauterbrunnental)
-# ind = np.random.choice(np.where(skyview_gt[grid_type] < 0.8)[0])
-azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
+# ind = np.random.choice(np.where(data_extpar["grid_type_1"]["svf"] < 0.8)[0])
+# ------------------ Brigitta 100 m resolution grid ---------------------------
+diff_abs = np.abs(data_extpar["grid_type_1"]["horizon"]
+                  - data_extpar["extpar_old"]["horizon"]).mean(axis=0)
+diff_abs[dist < 10.0] = -99.9
+ind = int(np.argsort(diff_abs)[-1])  # -1, -3, -7 (dist < 10.0)
+print(dist[ind], diff_abs[ind])
+# -----------------------------------------------------------------------------
+# azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])
 fig = plt.figure(figsize=(15, 5))
 # ---------------------------- Mask for triangles -----------------------------
-dist_search = 40_000  # search distance for horizon [m]
 if grid_type == 0:
     phi, theta, radius = observer_perspective(clon, clat, hsurf,
                                             clon[ind], clat[ind],
@@ -313,17 +366,20 @@ mask_vertex = np.unique(vertex_of_triangle_gt[grid_type][:, mask].ravel())
 # -----------------------------------------------------------------------------
 plt.scatter(phi[mask_vertex], theta[mask_vertex], color="sienna", s=20,
             alpha=0.5)
-triangles = mpl.tri.Triangulation(
+triangles = tri.Triangulation(
     phi, theta, vertex_of_triangle_gt[grid_type][:, mask].transpose())
 plt.triplot(triangles, color="black", linewidth=0.5)
 # -----------------------------------------------------------------------------
-plt.plot(azim_old, horizon_old[:, ind], label="current", color="red", lw=2.5)
-plt.plot(azim, horizon_gt[0][:, ind], label="Ray tracing (grid_type = 0)",
+horizon_old = data_extpar["extpar_old"]["horizon"][:, ind]
+# plt.plot(azim_old, horizon_old, label="current", color="red", lw=2.5)
+plt.plot(azim, horizon_old, label="current", color="red", lw=2.5)
+horizon_gt0 = data_extpar["grid_type_0"]["horizon"][:, ind]
+plt.plot(azim, horizon_gt0, label="Ray tracing (grid_type = 0)",
          color="royalblue", lw=1.5, ls="--")
-plt.plot(azim, horizon_gt[1][:, ind], label="Ray tracing (grid_type = 1)",
+horizon_gt1 = data_extpar["grid_type_1"]["horizon"][:, ind]
+plt.plot(azim, horizon_gt1, label="Ray tracing (grid_type = 1)",
          color="royalblue", lw=2.5)
-hori_all = np.hstack((horizon_old[:, ind], horizon_gt[0][:, ind],
-                      horizon_gt[1][:, ind]))
+hori_all = np.hstack((horizon_old, horizon_gt0, horizon_gt1))
 plt.axis((0.0, 360.0, 0.0, hori_all.max() * 1.05))
 plt.legend(fontsize=12, frameon=False)
 plt.xlabel("Azimuth angle (clockwise from North) [deg]")
@@ -333,6 +389,5 @@ txt = "Latitude: %.3f" % np.rad2deg(clat[ind]) \
     + "$^{\circ}$, elevation: %.0f" % hsurf[ind] + " m"
 plt.title(txt, fontsize=12, loc="left")
 # plt.show()
-plt.savefig("/scratch/mch/csteger/HORAYZON_extpar/"
-            + "horizon_ind_" + str(ind) + ".png", dpi=300)
+plt.savefig(path_plot + "horizon_ind_" + str(ind) + ".png", dpi=300)
 plt.close()
