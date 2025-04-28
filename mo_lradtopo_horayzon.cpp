@@ -651,6 +651,7 @@ void terrain_horizon(float ray_org_x, float ray_org_y, float ray_org_z,
 // Main function
 //-----------------------------------------------------------------------------
 
+// extern "C" { // required for Fortran interface
 void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     double* vlon, double* vlat,
     int* cells_of_vertex,
@@ -848,3 +849,4 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
         << "-------------------" << std::endl;
 
 }
+// }
