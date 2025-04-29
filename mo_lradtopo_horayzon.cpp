@@ -3,6 +3,8 @@
 #define _USE_MATH_DEFINES
 #include <cstdio>
 #include <iostream>
+// #include <sstream>  // Fortran interface
+// #include <cstring>  // Fortran interface
 #include <vector>
 #include <cmath>
 #include <chrono>
@@ -651,7 +653,7 @@ void terrain_horizon(float ray_org_x, float ray_org_y, float ray_org_z,
 // Main function
 //-----------------------------------------------------------------------------
 
-// extern "C" { // required for Fortran interface
+// extern "C" { // Fortran interface
 void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     double* vlon, double* vlat,
     int* cells_of_vertex,
@@ -659,7 +661,12 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     int num_cell, int num_vertex, int azim_num,
     int grid_type, double dist_search_dp,
     double ray_org_elev, int refine_factor,
-    int svf_type){
+    int svf_type){ // Fortran interface
+    // int svf_type, char* buffer, int* buffer_len){ // Fortran interface
+
+    // // Redirect std::cout (Fortran interface)
+    // std::stringstream string_stream;
+    // auto* old_buf = std::cout.rdbuf(string_stream.rdbuf());
 
     // Fixed settings
     double hori_acc = deg2rad(0.25); // horizon accuracy [deg]
@@ -848,5 +855,12 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     std::cout << "------------------------------------------------------------"
         << "-------------------" << std::endl;
 
+    // // Restore original std::cout and copy output to buffer (Fortran interface)
+    // std::cout.rdbuf(old_buf);
+    // std::string output = string_stream.str();
+    // int copy_len = std::min(*buffer_len, (int)output.size());
+    // std::memcpy(buffer, output.c_str(), copy_len);
+    // *buffer_len = copy_len;
+
 }
-// }
+// } // Fortran interface
