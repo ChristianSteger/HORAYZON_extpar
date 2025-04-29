@@ -727,14 +727,19 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
         sphere_normals, rad_earth);
 
     // Origin of ENU coordinate system
-    double lon_orig = 0.0;
-    double lat_orig = 0.0;
+    double x_orig = 0.0;
+    double y_orig = 0.0;
+    double z_orig = 0.0;
     for (int i = 0; i < num_cell; i++){
-        lon_orig += clon[i];
-        lat_orig += clat[i];
+        x_orig += sphere_normals[i].x;
+        y_orig += sphere_normals[i].y;
+        z_orig += sphere_normals[i].z;
     }
-    lon_orig /= num_cell;
-    lat_orig /= num_cell;
+    double radius = sqrt(x_orig * x_orig + y_orig * y_orig + z_orig * z_orig);
+    double lon_orig = atan2(y_orig, x_orig);
+    double lat_orig = asin(z_orig / radius);
+    // works correctly for ICON domains containing the North/South Pole and/or
+    // crossing the +/- 180 deg meridian
 
     // In-place transformation from ECEF to ENU coordinates
     std::cout << std::setprecision(4) << std::fixed;
