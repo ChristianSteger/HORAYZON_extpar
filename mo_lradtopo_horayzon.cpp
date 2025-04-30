@@ -392,15 +392,6 @@ int build_triangle_mesh(double* clon, double* clat, double* hsurf,
     }
     int num_triangle = vertex_of_triangle.size() / 3;
     std::cout << "Number of triangles in mesh: " << num_triangle << std::endl;
-    // temporary start --------------------------------------------------------
-    for (int i = 0; i < 3; i++){
-        long temp = 0;
-        for (int j = 0; j < num_triangle; j++){
-            temp += vertex_of_triangle[3 * j + i];
-        }
-        std::cout << "Sum over axis: " << temp << std::endl;
-    }
-    // temporary end ----------------------------------------------------------
     return num_triangle;
 }
 
@@ -687,17 +678,6 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
         << std::endl;
     std::cout << "------------------------------------------------------------"
         << "-------------------" << std::endl;
-
-    // temporary start --------------------------------------------------------
-    std::cout << "num_hori: " << azim_num << std::endl;
-    std::cout << "grid_type: " << grid_type << std::endl;
-    std::cout << "dist_search: " << dist_search << std::endl;
-    std::cout << "ray_org_elev: " << ray_org_elev << std::endl;
-    std::cout << "refine_factor: " << refine_factor << std::endl;
-    std::cout << "svf_type: " << svf_type << std::endl;
-    std::cout << "hori_acc: " << hori_acc << std::endl;
-    std::cout << "elev_ang_thresh: " << elev_ang_thresh << std::endl;
-    // temporary end ----------------------------------------------------------
 
     // Build triangle mesh from ICON grid
     auto start_mesh = std::chrono::high_resolution_clock::now();
