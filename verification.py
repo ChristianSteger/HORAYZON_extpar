@@ -12,10 +12,10 @@ import matplotlib.pyplot as plt
 from matplotlib import style, rcParams, tri, colors
 import cartopy.crs as ccrs
 import cartopy.feature as feature
-from pyproj import Transformer
 from scipy.spatial import KDTree
 
 from development import triangle_mesh_circ, triangle_mesh_circ_vert
+from functions import observer_perspective
 
 style.use("classic")
 
@@ -28,86 +28,54 @@ rcParams["mathtext.rm"] = "DejaVu Sans"
 # Paths
 path_ige = "/store_new/mch/msopr/csteger/Data/Miscellaneous/" \
     + "ICON_grids_EXTPAR/"
-path_plot = "/scratch/mch/csteger/HORAYZON_extpar/"
+path_plot = "/scratch/mch/csteger/HORAYZON_extpar/plots/"
 
 # Path to Cython/C++ functions
 sys.path.append("/scratch/mch/csteger/HORAYZON_extpar/")
 from horizon_svf import horizon_svf_comp_py
 
 ###############################################################################
-# Functions
-###############################################################################
-
-def observer_perspective(lon: np.ndarray, lat: np.ndarray,
-                         elevation: np.ndarray, lon_obs: float, lat_obs: float,
-                         elevation_obs:float) -> tuple:
-    """Transform points to 'observer perspective'. Latitude/longitude -> ECEF
-    -> ENU -> spherical coordinates.
-
-    Parameters
-    ----------
-    lon : ndarray of double
-        Array with longitude of points [rad]
-    lat : ndarray of double
-        Array with latitude of points [rad]
-    elevation : ndarray of float
-        Array with elevation of points [m]
-    lon_obs : double
-        Longitude of 'observer' [rad]
-    lat_obs : double
-        Latitude of 'observer' [rad]
-    elevation_obs : float
-        Elevation of 'observer' [m]
-
-    Returns
-    -------
-    phi : ndarray of double
-        Array with azimuth angles [deg]
-    theta : ndarray of double
-        Array with elevation angles [deg]
-    radius : ndarray of double
-        Array with radii [m]"""
-
-    txt = "+proj=pipeline +step +proj=cart +ellps=sphere +R=6371229.0" \
-          + " +step +proj=topocentric +ellps=sphere +R=6371229.0" \
-          + " +lon_0=" + str(np.rad2deg(lon_obs)) \
-          + " +lat_0=" + str(np.rad2deg(lat_obs)) \
-          + " +h_0=" + str(elevation_obs)
-    t = Transformer.from_pipeline(txt)
-    x, y, z = t.transform(np.rad2deg(lon), np.rad2deg(lat), elevation)
-    radius = np.sqrt(x ** 2 + y ** 2 + z ** 2)
-    theta = np.rad2deg(np.arccos(z / radius))  # zenith angle [90.0, 0.0 deg]
-    theta = 90.0 - theta  # elevation angle [0.0, 90 deg]
-    phi = np.rad2deg(np.arctan2(x, y))  # azimuth angle [-180.0, +180.0 deg]
-    phi[phi < 0.0] += 360.0  # [0.0, 360.0 deg]
-
-    return phi, theta, radius
-
-###############################################################################
 # Load ICON data
 ###############################################################################
 
-# MeteoSwiss domain (1km, 500m)
-# file_grid = "MeteoSwiss/icon_grid_0001_R19B08_mch.nc" # ~1 km
-# file_extpar = "MeteoSwiss/extpar_icon_grid_0001_R19B08_mch.nc"
+# MeteoSwiss domain (2km, 1km, 500m)
+# file_grid = "MeteoSwiss/icon_grid_0002_R19B07_mch.nc" # ~2 km
+# file_extpar = "MeteoSwiss/external_parameter_icon_grid_0002_R19B07_mch.nc"
+# file_extpar_new = "topography_i2_horayzon.nc"
+# -------------------------------------------------------------
+file_grid = "MeteoSwiss/icon_grid_0001_R19B08_mch.nc" # ~1 km
+file_extpar = "MeteoSwiss/extpar_icon_grid_0001_R19B08_mch.nc"
+file_extpar_new = "topography_i1_horayzon.nc"
+# -------------------------------------------------------------
 # file_grid = "MeteoSwiss/icon_grid_00005_R19B09_DOM02.nc" # ~500 m
 # file_extpar = "MeteoSwiss/extpar_icon_grid_00005_R19B09_DOM02.nc"
+# file_extpar_new = "topography_i05_horayzon.nc"
 
 # EXTPAR test domain DOM01
-# file_grid = "EXTPAR_test/icon_grid_DOM01.nc" # ~2 km
-# file_extpar = "EXTPAR_test/external_parameter_icon_d2_PR273.nc"
+# file_grid = "test/icon_grid_DOM01.nc" # ~2 km
+# file_extpar = "test/external_parameter_icon_d2_PR273.nc"
+# file_extpar_new = "test_DOM01_horayzon.nc"
 
 # Domains from Brigitta
 # file_grid = "Brigitta/domain1_DOM01.nc" # ~1 km
 # file_extpar = "Brigitta/extpar_icon_grid_domain1_DOM01.nc"
+# file_extpar_new = "domain1_DOM01_horayzon.nc"
+# -------------------------------------------------------------
 # file_grid = "Brigitta/domain2_DOM02.nc" # ~500 m
 # file_extpar = "Brigitta/extpar_icon_grid_domain2_DOM02.nc"
+# file_extpar_new = "domain2_DOM02_horayzon.nc"
+# -------------------------------------------------------------
 # file_grid = "Brigitta/domain3_DOM03.nc" # ~250 m
 # file_extpar = "Brigitta/extpar_icon_grid_domain3_DOM03.nc"
-file_grid = "Brigitta/domain4_DOM04.nc" # ~125 m
-file_extpar = "Brigitta/extpar_icon_grid_domain4_DOM04.nc"
+# file_extpar_new = "domain3_DOM03_horayzon.nc"
+# -------------------------------------------------------------
+# file_grid = "Brigitta/domain4_DOM04.nc" # ~125 m
+# file_extpar = "Brigitta/extpar_icon_grid_domain4_DOM04.nc"
+# file_extpar_new = "domain4_DOM04_horayzon.nc"
+# -------------------------------------------------------------
 # file_grid = "Brigitta/domain_switzerland_200m.nc" # ~200 m
 # file_extpar = "Brigitta/extpar_icon_grid_domain_switzerland_200m.nc"
+# file_extpar_new = "switzerland_200m_horayzon.nc"
 
 # -----------------------------------------------------------------------------
 
@@ -126,8 +94,10 @@ print(f"grid_root (n): {grid_root}, grid_level (k): {grid_level}")
 grid_res = (5050.0 / (grid_root * 2 ** grid_level)) * 1000.0  # [m]
 print(f"Approximate grid resolution: {grid_res:.1f} m")
 
-# Load elevation of cell circumcenters
-ds = xr.open_dataset(path_ige + file_extpar)
+# Load elevation of cell circumcenters and radtopo fields
+file = path_ige + file_extpar.split("/")[0] + "/extpar_grid_shift_topo/" \
+    + file_extpar.split("/")[1]
+ds = xr.open_dataset(file)
 hsurf = ds["topography_c"].values.squeeze()  # (num_cell)
 num_hori = ds["nhori"].size
 horizon_old = ds["HORIZON"].values.squeeze()  # (nhori, num_cell)
@@ -138,36 +108,40 @@ ds.close()
 if (clon.size != hsurf.size):
     raise ValueError("Inconsistent number of cells in grid and topography")
 
+# Dictionary with terrain horizon data
+data_hori = {}
+data_hori["extpar_old"] = {"horizon": horizon_old, "svf": skyview_old}
+
 ###############################################################################
 # Check ICON grid and topography
 ###############################################################################
 
-# Map plot of topography
-cmap = plt.get_cmap("terrain")
-levels = np.arange(0.0, 3200.0, 200.0)
-norm = colors.BoundaryNorm(levels, ncolors=cmap.N, extend="max")
-plt.figure(figsize=(14, 8))
-ax = plt.axes(projection=ccrs.PlateCarree())
-triangles = tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
-                                  vertex_of_cell.transpose())
-plt.tripcolor(triangles, hsurf, cmap=cmap, norm=norm,
-              edgecolors="black", linewidth=0.0)
-ax.add_feature(feature.BORDERS.with_scale("10m"),
-               linestyle="-", linewidth=0.6)
-ax.add_feature(feature.COASTLINE.with_scale("10m"),
-               linestyle="-", linewidth=0.6)
-gl = ax.gridlines(crs=ccrs.PlateCarree(), linewidth=1, color="black",
-                  alpha=0.5, linestyle=":", draw_labels=True)
-gl.top_labels = False
-gl.right_labels = False
-plt.colorbar()
-plt.title("Elevation [m a.s.l]")
+# # Map plot of topography
+# cmap = plt.get_cmap("terrain")
+# levels = np.arange(0.0, 3200.0, 200.0)
+# norm = colors.BoundaryNorm(levels, ncolors=cmap.N, extend="max")
+# plt.figure(figsize=(14, 8))
+# ax = plt.axes(projection=ccrs.PlateCarree())
+# triangles = tri.Triangulation(np.rad2deg(vlon), np.rad2deg(vlat),
+#                                 vertex_of_cell.transpose())
+# plt.tripcolor(triangles, hsurf, cmap=cmap, norm=norm,
+#             edgecolors="black", linewidth=0.0)
+# ax.add_feature(feature.BORDERS.with_scale("10m"),
+#             linestyle="-", linewidth=0.6)
+# ax.add_feature(feature.COASTLINE.with_scale("10m"),
+#             linestyle="-", linewidth=0.6)
+# gl = ax.gridlines(crs=ccrs.PlateCarree(), linewidth=1, color="black",
+#                 alpha=0.5, linestyle=":", draw_labels=True)
+# gl.top_labels = False
+# gl.right_labels = False
+# plt.colorbar()
+# plt.title("Elevation [m a.s.l]")
 # plt.show()
-file_plot = path_plot + "ICON_grid_topo.png"
-plt.savefig(file_plot , dpi=300)
-plt.close()
+# # file_plot = path_plot + "ICON_grid_topo.png"
+# # plt.savefig(file_plot, dpi=300, bbox_inches="tight")
+# # plt.close()
 
-# os.remove(file_plot)
+# # os.remove(file_plot)
 
 ###############################################################################
 # Compute horizon / sky view factor from two different grid types
@@ -175,14 +149,15 @@ plt.close()
 
 # Settings
 num_hori = 24 # 240
-dist_search = 50_000.0 #  horizon search distance [m]
+dist_search = 40_000.0 #  horizon search distance [m]
 ray_org_elev = 0.2 # 0.1, 0.2 [m]
 refine_factor = 10 # 1
 svf_type = 2 # 0, 1, 2
+grid_types = (0, 1) # (0, 1)
 
 # Loop through two different grid types
 vertex_of_triangle_gt = {}
-for grid_type in range(2):
+for grid_type in grid_types:
 
     # Construct triangle mesh
     if grid_type == 0:
@@ -232,33 +207,37 @@ for grid_type in range(2):
         + ", %.5f" % np.max(horizon))
     print("Sky view factor range [-]: %.8f" % np.min(skyview)
         + ", %.8f" % np.max(skyview))
+    data_hori[f"grid_type_{grid_type}"] = {"horizon": horizon, "svf": skyview}
 
-    # Create new EXTPAR file with ray-tracing based terrain horizon and SVF
-    ds = xr.open_dataset(path_ige + file_extpar)
-    ds["HORIZON"].values[:] = horizon
-    ds["SKYVIEW"].values[:] = skyview
-    file_out = file_extpar[:-3] + f"_horayzon_gt_{grid_type}.nc"
-    ds.to_netcdf(path_ige + file_out)
-    # Check that really overwritten
-    ds = xr.open_dataset(path_ige + file_out)
-    print(np.all(ds["HORIZON"].values == horizon))
-    print(np.all(ds["SKYVIEW"].values == skyview))
-    ds.close()
+# -----------------------------------------------------------------------------
+# Compare with output from EXTPAR (Fortran-C++ interface; temporary)
+# -----------------------------------------------------------------------------
+
+# # Load data from EXTPAR implementation
+# file_new = "/scratch/mch/csteger/ExtPar/output/HORAYZON_extpar/" \
+#     + file_extpar_new
+# ds = xr.open_dataset(file_new)
+# horizon = ds["HORIZON"].values.squeeze()
+# svf = ds["SKYVIEW"].values.squeeze()
+# ds.close()
+
+# # Compare terrain horizon
+# print(" Terrain horizon ".center(60, "-"))
+# dev_abs = data_hori["grid_type_1"]["horizon"] - horizon
+# print(f"Mean abs. dev: {np.abs(dev_abs).mean():.8f} deg")
+# print(f"Max abs. dev: {np.abs(dev_abs).max():.3f} deg")
+# perc_uneq = (dev_abs > 0.0).sum() / horizon.size * 100.0
+# print(f"Percentage of unequal elements: {perc_uneq:.5f} %")
+
+# # Compare sky view factor
+# print(" Sky View Factor ".center(60, "-"))
+# dev_abs = data_hori["grid_type_1"]["svf"] - svf
+# print(f"Mean abs. dev: {np.abs(dev_abs).mean():.12f}")
+# print(f"Max abs. dev: {np.abs(dev_abs).max():.5f}")
 
 ###############################################################################
 # Check and compare terrain horizon and sky view factor
 ###############################################################################
-
-# Load data
-exp_all = {"extpar_old": file_extpar,
-           "grid_type_0": file_extpar[:-3] + f"_horayzon_gt_0.nc",
-           "grid_type_1": file_extpar[:-3] + f"_horayzon_gt_1.nc"}
-data_extpar = {}
-for i in exp_all.keys():
-    ds = xr.open_dataset(path_ige + exp_all[i])
-    data_extpar[i] = {"horizon": ds["HORIZON"].values,
-                      "svf": ds["SKYVIEW"].values}
-    ds.close()
 
 # -----------------------------------------------------------------------------
 # Map plot
@@ -266,16 +245,15 @@ for i in exp_all.keys():
 
 # Settings
 # exp = "extpar_old"
-# exp = "grid_type_0"
 exp = "grid_type_1"
 # ------------------------------------
 name = "horizon"
-values = data_extpar[i]["horizon"][0, :]
+values = data_hori[exp]["horizon"][0, :]
 cmap = plt.get_cmap("afmhot_r")
 levels = np.arange(0.0, 37.5, 2.5)
 # ------------------------------------
 # name = "svf"
-# values = data_extpar[i]["svf"]
+# values = data_hori[exp]["svf"]
 # cmap = plt.get_cmap("YlGnBu_r")
 # levels = np.arange(0.85, 1.0, 0.005)
 # ------------------------------------
@@ -304,10 +282,10 @@ plt.colorbar()
 #                             + (pts[0][1] - np.rad2deg(clat)) ** 2))
 #     print(ind)
 # # ---------------------------------------------------------------------------
-# plt.show()
-file_plot = path_plot + name + "_" + exp + ".png"
-plt.savefig(file_plot , dpi=300)
-plt.close()
+plt.show()
+# file_plot = path_plot + name + "_" + exp + ".png"
+# plt.savefig(file_plot , dpi=300, bbox_inches="tight")
+# plt.close()
 
 # os.remove(file_plot)
 
@@ -331,17 +309,23 @@ dist, ind = tree.query(pts_query, k=1, workers=10)
 # euclidean distance (chord length) [km]
 
 # Check terrain horizon for specific (triangle) cell
+icon_res = "ICON@1km"
+# icon_res = "ICON@500m"
+# icon_res = "ICON@100m"
 grid_type = 1  # used for plotting grid
+diff_abs = np.abs(data_hori["grid_type_1"]["horizon"]
+                  - data_hori["extpar_old"]["horizon"]).mean(axis=0)
+# ----------------- MeteoSwiss 1 km resolution grid ---------------------------
+diff_abs[dist < 40.0] = -99.9 # mask locations too close to boundary
+ind = int(np.argsort(diff_abs)[-6]) # -4, -5, -6
 # ----------------- MeteoSwiss 500 m resolution grid --------------------------
 # ind = 1909971  # best so far (Mattertal)
 # ind = 1901633  # 2nd (Lauterbrunnental)
-# ind = np.random.choice(np.where(data_extpar["grid_type_1"]["svf"] < 0.8)[0])
+# diff_abs[dist < 40.0] = -99.9
+# ind = int(np.argsort(diff_abs)[-7]) # -3, -4, -7
 # ------------------ Brigitta 100 m resolution grid ---------------------------
-diff_abs = np.abs(data_extpar["grid_type_1"]["horizon"]
-                  - data_extpar["extpar_old"]["horizon"]).mean(axis=0)
-diff_abs[dist < 10.0] = -99.9
-ind = int(np.argsort(diff_abs)[-1])  # -1, -3, -7 (dist < 10.0)
-print(dist[ind], diff_abs[ind])
+# diff_abs[dist < 10.0] = -99.9
+# ind = int(np.argsort(diff_abs)[-20])  # -1, -3, -7, -10, -11, -18, -20
 # -----------------------------------------------------------------------------
 # azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])
@@ -370,13 +354,13 @@ triangles = tri.Triangulation(
     phi, theta, vertex_of_triangle_gt[grid_type][:, mask].transpose())
 plt.triplot(triangles, color="black", linewidth=0.5)
 # -----------------------------------------------------------------------------
-horizon_old = data_extpar["extpar_old"]["horizon"][:, ind]
+horizon_old = data_hori["extpar_old"]["horizon"][:, ind]
 # plt.plot(azim_old, horizon_old, label="current", color="red", lw=2.5)
-plt.plot(azim, horizon_old, label="current", color="red", lw=2.5)
-horizon_gt0 = data_extpar["grid_type_0"]["horizon"][:, ind]
+plt.plot(azim, horizon_old, label="Fortran algorithm", color="red", lw=2.5)
+horizon_gt0 = data_hori["grid_type_0"]["horizon"][:, ind]
 plt.plot(azim, horizon_gt0, label="Ray tracing (grid_type = 0)",
          color="royalblue", lw=1.5, ls="--")
-horizon_gt1 = data_extpar["grid_type_1"]["horizon"][:, ind]
+horizon_gt1 = data_hori["grid_type_1"]["horizon"][:, ind]
 plt.plot(azim, horizon_gt1, label="Ray tracing (grid_type = 1)",
          color="royalblue", lw=2.5)
 hori_all = np.hstack((horizon_old, horizon_gt0, horizon_gt1))
@@ -386,8 +370,10 @@ plt.xlabel("Azimuth angle (clockwise from North) [deg]")
 plt.ylabel("Elevation angle [deg]")
 txt = "Latitude: %.3f" % np.rad2deg(clat[ind]) \
     + "$^{\circ}$, longitude: %.3f" % np.rad2deg(clon[ind]) \
-    + "$^{\circ}$, elevation: %.0f" % hsurf[ind] + " m"
+    + "$^{\circ}$, elevation: %.0f" % hsurf[ind] + " m, " \
+    + icon_res
 plt.title(txt, fontsize=12, loc="left")
-# plt.show()
-plt.savefig(path_plot + "horizon_ind_" + str(ind) + ".png", dpi=300)
-plt.close()
+plt.show()
+# file_out = icon_res.replace("@", "_") + "_horizon_ind_" + str(ind) + ".png"
+# plt.savefig(path_plot + file_out, dpi=300, bbox_inches="tight")
+# plt.close()
