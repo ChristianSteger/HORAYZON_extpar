@@ -4,6 +4,7 @@
 
 import numpy as np
 from pyproj import Transformer
+from scipy.spatial import KDTree
 
 # -----------------------------------------------------------------------------
 
@@ -51,5 +52,48 @@ def observer_perspective(lon: np.ndarray, lat: np.ndarray,
     phi[phi < 0.0] += 360.0  # [0.0, 360.0 deg]
 
     return phi, theta, radius
+
+# -----------------------------------------------------------------------------
+
+def distance_to_border(clon, clat, vlon, vlat, cells_of_vertex):
+    """Compute distances of grid cell circumcenter to triangle mesh border
+
+    Parameters
+    ----------
+    clon : ndarray of double
+        Array with longitude of ICON grid cell circumcenters
+        (number of ICON cells) [rad]
+    clat : ndarray of double
+        Array with latitude of ICON grid cell circumcenters
+        (number of ICON cells) [rad]
+    vlon : ndarray of double
+        Array with longitude of ICON grid cell vertices
+        (number of ICON vertices) [rad]
+    vlat : ndarray of double
+        Array with latitude of ICON grid cell vertices
+        (number of ICON vertices) [rad]
+    cells_of_vertex : ndarray of int
+        Array with indices of ICON cells adjacent to ICON vertices. Indices
+        start with 0 (6, number of ICON vertices)
+
+    Returns
+    -------
+    dist : ndarray of double
+        Chord distance to mesh border [km]"""
+
+    mask_border = np.any(cells_of_vertex == -2, axis=0)
+    rad_e = 6371.0087714  # Earth radius [km]
+    vx = rad_e * np.cos(vlat[mask_border]) * np.cos(vlon[mask_border])
+    vy = rad_e * np.cos(vlat[mask_border]) * np.sin(vlon[mask_border])
+    vz = rad_e * np.sin(vlat[mask_border])
+    pts_tree = np.vstack((vx, vy, vz)).transpose()
+    tree = KDTree(pts_tree)
+    cx = rad_e * np.cos(clat) * np.cos(clon)
+    cy = rad_e * np.cos(clat) * np.sin(clon)
+    cz = rad_e * np.sin(clat)
+    pts_query = np.vstack((cx, cy, cz)).transpose()
+    dist, _ = tree.query(pts_query, k=1, workers=10)
+    # euclidean distance (chord length) [km]
+    return dist
 
 # -----------------------------------------------------------------------------

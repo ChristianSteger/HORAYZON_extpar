@@ -12,10 +12,9 @@ import matplotlib.pyplot as plt
 from matplotlib import style, rcParams, tri, colors
 import cartopy.crs as ccrs
 import cartopy.feature as feature
-from scipy.spatial import KDTree
 
 from development import triangle_mesh_circ, triangle_mesh_circ_vert
-from functions import observer_perspective
+from functions import observer_perspective, distance_to_border
 
 style.use("classic")
 
@@ -293,21 +292,6 @@ plt.show()
 # Specific location
 # -----------------------------------------------------------------------------
 
-# Compute distances of grid cell circumcenter to triangle mesh border
-mask_border = np.any(cells_of_vertex == -2, axis=0)
-rad_e = 6371.0087714  # Earth radius [km]
-vx = rad_e * np.cos(vlat[mask_border]) * np.cos(vlon[mask_border])
-vy = rad_e * np.cos(vlat[mask_border]) * np.sin(vlon[mask_border])
-vz = rad_e * np.sin(vlat[mask_border])
-pts_tree = np.vstack((vx, vy, vz)).transpose()
-tree = KDTree(pts_tree)
-cx = rad_e * np.cos(clat) * np.cos(clon)
-cy = rad_e * np.cos(clat) * np.sin(clon)
-cz = rad_e * np.sin(clat)
-pts_query = np.vstack((cx, cy, cz)).transpose()
-dist, ind = tree.query(pts_query, k=1, workers=10)
-# euclidean distance (chord length) [km]
-
 # Check terrain horizon for specific (triangle) cell
 icon_res = "ICON@1km"
 # icon_res = "ICON@500m"
@@ -315,6 +299,7 @@ icon_res = "ICON@1km"
 grid_type = 1  # used for plotting grid
 diff_abs = np.abs(data_hori["grid_type_1"]["horizon"]
                   - data_hori["extpar_old"]["horizon"]).mean(axis=0)
+dist = distance_to_border(clon, clat, vlon, vlat, cells_of_vertex)
 # ----------------- MeteoSwiss 1 km resolution grid ---------------------------
 diff_abs[dist < 40.0] = -99.9 # mask locations too close to boundary
 ind = int(np.argsort(diff_abs)[-6]) # -4, -5, -6
