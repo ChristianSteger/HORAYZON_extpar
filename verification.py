@@ -42,9 +42,9 @@ from horizon_svf import horizon_svf_comp_py
 # file_extpar = "MeteoSwiss/external_parameter_icon_grid_0002_R19B07_mch.nc"
 # file_extpar_new = "topography_i2_horayzon.nc"
 # -------------------------------------------------------------
-file_grid = "MeteoSwiss/icon_grid_0001_R19B08_mch.nc" # ~1 km
-file_extpar = "MeteoSwiss/extpar_icon_grid_0001_R19B08_mch.nc"
-file_extpar_new = "topography_i1_horayzon.nc"
+# file_grid = "MeteoSwiss/icon_grid_0001_R19B08_mch.nc" # ~1 km
+# file_extpar = "MeteoSwiss/extpar_icon_grid_0001_R19B08_mch.nc"
+# file_extpar_new = "topography_i1_horayzon.nc"
 # -------------------------------------------------------------
 # file_grid = "MeteoSwiss/icon_grid_00005_R19B09_DOM02.nc" # ~500 m
 # file_extpar = "MeteoSwiss/extpar_icon_grid_00005_R19B09_DOM02.nc"
@@ -68,9 +68,9 @@ file_extpar_new = "topography_i1_horayzon.nc"
 # file_extpar = "Brigitta/extpar_icon_grid_domain3_DOM03.nc"
 # file_extpar_new = "domain3_DOM03_horayzon.nc"
 # -------------------------------------------------------------
-# file_grid = "Brigitta/domain4_DOM04.nc" # ~125 m
-# file_extpar = "Brigitta/extpar_icon_grid_domain4_DOM04.nc"
-# file_extpar_new = "domain4_DOM04_horayzon.nc"
+file_grid = "Brigitta/domain4_DOM04.nc" # ~125 m
+file_extpar = "Brigitta/extpar_icon_grid_domain4_DOM04.nc"
+file_extpar_new = "domain4_DOM04_horayzon.nc"
 # -------------------------------------------------------------
 # file_grid = "Brigitta/domain_switzerland_200m.nc" # ~200 m
 # file_extpar = "Brigitta/extpar_icon_grid_domain_switzerland_200m.nc"
@@ -293,16 +293,16 @@ plt.show()
 # -----------------------------------------------------------------------------
 
 # Check terrain horizon for specific (triangle) cell
-icon_res = "ICON@1km"
+# icon_res = "ICON@1km"
 # icon_res = "ICON@500m"
-# icon_res = "ICON@100m"
+icon_res = "ICON@100m"
 grid_type = 1  # used for plotting grid
 diff_abs = np.abs(data_hori["grid_type_1"]["horizon"]
                   - data_hori["extpar_old"]["horizon"]).mean(axis=0)
 dist = distance_to_border(clon, clat, vlon, vlat, cells_of_vertex)
 # ----------------- MeteoSwiss 1 km resolution grid ---------------------------
-diff_abs[dist < 40.0] = -99.9 # mask locations too close to boundary
-ind = int(np.argsort(diff_abs)[-6]) # -4, -5, -6
+# diff_abs[dist < 40.0] = -99.9 # mask locations too close to boundary
+# ind = int(np.argsort(diff_abs)[-6]) # -4, -5, -6
 # ----------------- MeteoSwiss 500 m resolution grid --------------------------
 # ind = 1909971  # best so far (Mattertal)
 # ind = 1901633  # 2nd (Lauterbrunnental)
@@ -311,6 +311,7 @@ ind = int(np.argsort(diff_abs)[-6]) # -4, -5, -6
 # ------------------ Brigitta 100 m resolution grid ---------------------------
 # diff_abs[dist < 10.0] = -99.9
 # ind = int(np.argsort(diff_abs)[-20])  # -1, -3, -7, -10, -11, -18, -20
+ind = 401_930 # boundary problem visible
 # -----------------------------------------------------------------------------
 # azim_old = np.arange(0.0, 360.0, 360.0 / horizon_old.shape[0]) + 7.5
 azim = np.arange(0.0, 360.0, 360.0 / horizon.shape[0])
@@ -358,7 +359,7 @@ txt = "Latitude: %.3f" % np.rad2deg(clat[ind]) \
     + "$^{\circ}$, elevation: %.0f" % hsurf[ind] + " m, " \
     + icon_res
 plt.title(txt, fontsize=12, loc="left")
-plt.show()
-# file_out = icon_res.replace("@", "_") + "_horizon_ind_" + str(ind) + ".png"
-# plt.savefig(path_plot + file_out, dpi=300, bbox_inches="tight")
-# plt.close()
+# plt.show()
+file_out = icon_res.replace("@", "_") + "_horizon_ind_" + str(ind) + ".png"
+plt.savefig(path_plot + file_out, dpi=300, bbox_inches="tight")
+plt.close()
