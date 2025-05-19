@@ -169,39 +169,6 @@ void lonlat2ecef(std::vector<geom_point>& points, double rad_earth){
 }
 
 /**
- * @brief Computes tangential north vectors for points on a sphere.
- *
- * This function computes unit vectors for points in earth-centered,
- * earth-fixed (ECEF) coordinates that point towards North and are
- * perpendicular to the sphere's normals.
- *
- * @param points Points (x, y, z) in ECEF coordinates [m].
- * @param sphere_normals Sphere normals (x, y, z) at the point locations in
- *                       ECEF coordinates [m].
- * @param rad_earth Radius of Earth [m].
- * @return North directions (x, y, z) in ECEF coordinates [m].
- */
-std::vector<geom_vector> north_direction(std::vector<geom_point> points,
-    std::vector<geom_vector> sphere_normals, double rad_earth){
-    geom_vector v_p = {0.0, 0.0, rad_earth}; // north pole in ECEF coordinates
-	std::vector<geom_vector> north_directions(sphere_normals.size());
-    geom_vector v_n, v_j;
-    double dot_prod;
-    for (size_t i = 0; i < sphere_normals.size(); i++){
-        v_n.x = v_p.x - points[i].x;
-        v_n.y = v_p.y - points[i].y;
-        v_n.z = v_p.z - points[i].z;
-        dot_prod = dot_product(v_n, sphere_normals[i]);
-        v_j.x = v_n.x - dot_prod * sphere_normals[i].x;
-        v_j.y = v_n.y - dot_prod * sphere_normals[i].y;
-        v_j.z = v_n.z - dot_prod * sphere_normals[i].z;
-        unit_vector(v_j);
-        north_directions[i] = v_j;
-    }
-    return north_directions;
-}
-
-/**
  * @brief Transforms points from ECEF to ENU coordinates in-place.
  * @param points Points (x, y, z) in ECEF coordinates [m].
  * @param lon_orig Longitude of ENU coordinate system origin [rad].
@@ -230,34 +197,6 @@ void ecef2enu_point(std::vector<geom_point>& points, double lon_orig,
         points[i].x = x_enu;
         points[i].y = y_enu;
         points[i].z = z_enu;
-    }
-}
-
-/**
- * @brief Transforms vectors from ECEF to ENU coordinates in-place.
- * @param vectors Vectors (x, y, z) in ECEF coordinates [m].
- * @param lon_orig Longitude of ENU coordinate system origin [rad].
- * @param lat_orig Latitude of ENU coordinate system origin [rad].
- */
-void ecef2enu_vector(std::vector<geom_vector>& vectors, double lon_orig,
-    double lat_orig){
-    double sin_lon = sin(lon_orig);
-    double cos_lon = cos(lon_orig);
-    double sin_lat = sin(lat_orig);
-    double cos_lat = cos(lat_orig);
-    double x_enu, y_enu, z_enu;
-    for (size_t i = 0; i < vectors.size(); i++){
-        x_enu = - sin_lon * vectors[i].x
-            + cos_lon * vectors[i].y;
-        y_enu = - sin_lat * cos_lon * vectors[i].x
-            - sin_lat * sin_lon * vectors[i].y
-            + cos_lat * vectors[i].z;
-        z_enu = + cos_lat * cos_lon * vectors[i].x
-            + cos_lat * sin_lon * vectors[i].y
-            + sin_lat * vectors[i].z;
-        vectors[i].x = x_enu;
-        vectors[i].y = y_enu;
-        vectors[i].z = z_enu;
     }
 }
 
@@ -678,24 +617,24 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     // In-place transformation from geographic to ECEF coordinates
     lonlat2ecef(vertices, rad_earth);
 
-    // Sphere normals and north vectors for ICON grid cell circumcenters (ECEF)
-    std::vector<geom_vector> sphere_normals(num_cell);
-    for (int i = 0; i < num_cell; i++){
-        sphere_normals[i].x = vertices[i].x / rad_earth;
-        sphere_normals[i].y = vertices[i].y / rad_earth;
-        sphere_normals[i].z = vertices[i].z / rad_earth;
-    }
-    std::vector<geom_vector> north_directions = north_direction(vertices,
-        sphere_normals, rad_earth);
+    // Earth center and North Pole in ECEF coordinates
+    std::vector<geom_point> earth_centre(1);
+    earth_centre[0].x = 0.0;
+    earth_centre[0].y = 0.0;
+    earth_centre[0].z = 0.0;
+    std::vector<geom_point> north_pole(1);
+    north_pole[0].x = 0.0;
+    north_pole[0].y = 0.0;
+    north_pole[0].z = rad_earth;
 
     // Origin of ENU coordinate system
     double x_orig = 0.0;
     double y_orig = 0.0;
     double z_orig = 0.0;
     for (int i = 0; i < num_cell; i++){
-        x_orig += sphere_normals[i].x;
-        y_orig += sphere_normals[i].y;
-        z_orig += sphere_normals[i].z;
+        x_orig += vertices[i].x;
+        y_orig += vertices[i].y;
+        z_orig += vertices[i].z;
     }
     double radius = sqrt(x_orig * x_orig + y_orig * y_orig + z_orig * z_orig);
     double lon_orig = atan2(y_orig, x_orig);
@@ -708,8 +647,8 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     std::cout << "Origin of ENU coordinate system: " << rad2deg(lat_orig)
         << " deg lat, "  << rad2deg(lon_orig) << " deg lon" << std::endl;
     ecef2enu_point(vertices, lon_orig, lat_orig, rad_earth);
-    ecef2enu_vector(sphere_normals, lon_orig, lat_orig);
-    ecef2enu_vector(north_directions, lon_orig, lat_orig);
+    ecef2enu_point(earth_centre, lon_orig, lat_orig, rad_earth);
+    ecef2enu_point(north_pole, lon_orig, lat_orig, rad_earth);
 
     // Build bounding volume hierarchy (BVH)
     RTCDevice device = initializeDevice();
@@ -758,13 +697,34 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     // for (size_t i = 0; i < (size_t)num_cell; i++){ // serial
     for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
+        // Compute sphere normal
+        geom_vector sphere_normal = {
+            (vertices[i].x - earth_centre[0].x),
+            (vertices[i].y - earth_centre[0].y),
+            (vertices[i].z - earth_centre[0].z)
+        };
+        unit_vector(sphere_normal);
+
+        // Compute north direction (orthogonal to sphere normal)
+        geom_vector north_direction;
+        geom_vector v_n;
+        double dot_prod;
+        v_n.x = north_pole[0].x - vertices[i].x;
+        v_n.y = north_pole[0].y - vertices[i].y;
+        v_n.z = north_pole[0].z - vertices[i].z;
+        dot_prod = dot_product(v_n, sphere_normal);
+        north_direction.x = v_n.x - dot_prod * sphere_normal.x;
+        north_direction.y = v_n.y - dot_prod * sphere_normal.y;
+        north_direction.z = v_n.z - dot_prod * sphere_normal.z;
+        unit_vector(north_direction);
+
         // Elevate origin for ray tracing by 'safety margin'
         float ray_org_x = (float)(vertices[i].x
-            + sphere_normals[i].x * ray_org_elev);
+            + sphere_normal.x * ray_org_elev);
         float ray_org_y = (float)(vertices[i].y
-            + sphere_normals[i].y * ray_org_elev);
+            + sphere_normal.y * ray_org_elev);
         float ray_org_z = (float)(vertices[i].z
-            + sphere_normals[i].z * ray_org_elev);
+            + sphere_normal.z * ray_org_elev);
         // The origin of the ray is slightly elevated to avoid potential ray-
         // terrain collisions near the origin due to numerical imprecisions.
 
@@ -776,7 +736,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
             scene, num_rays,
             horizon_cell, horizon_cell_len,
             azim_shift,
-            sphere_normals[i], north_directions[i],
+            sphere_normal, north_direction,
             azim_sin, azim_cos,
             elev_sin_2ha, elev_cos_2ha);
 
