@@ -130,24 +130,6 @@ inline geom_vector vector_rotation(geom_vector v, geom_vector k,
 }
 
 /**
- * @brief Multiplies a matrix and a vector.
- * @param v_in Input vector.
- * @param matrix 3x3 matrix.
- * @return Output vector.
- */
-inline geom_vector vector_matrix_multiplication(geom_vector v_in,
-    double matrix[3][3]) {
-    geom_vector v_out;
-    v_out.x = matrix[0][0] * v_in.x + matrix[0][1] * v_in.y
-        + matrix[0][2] * v_in.z;
-    v_out.y = matrix[1][0] * v_in.x + matrix[1][1] * v_in.y
-        + matrix[1][2] * v_in.z;
-    v_out.z = matrix[2][0] * v_in.x + matrix[2][1] * v_in.y
-        + matrix[2][2] * v_in.z;
-    return v_out;
-}
-
-/**
  * @brief Returns indices that would sort an array in ascending order.
  * @param values Input values.
  * @return Indices that would sort the array.
@@ -660,7 +642,7 @@ void horizon_svf_comp(double* clon, double* clat, double* hsurf,
     // auto* old_buf = std::cout.rdbuf(string_stream.rdbuf());
 
     // Fixed settings
-    double hori_acc = deg2rad(0.25); // horizon accuracy [deg]
+    double hori_acc = deg2rad(0.25); // horizon accuracy [rad]
     double elev_ang_thresh = deg2rad(-85.0);
     // threshold for sampling in negative elevation angle direction [rad]
     // - relevant for 'void sampling directions' at edge of mesh
