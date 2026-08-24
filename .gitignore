@@ -1,4 +1,8 @@
 .vscode/
 build/
-horizon.cpp
+__pycache__/
+src/horayzon_extpar/horizon.cpp
 *.so
+*.egg-info/
+wheelhouse/
+.embree_cache/

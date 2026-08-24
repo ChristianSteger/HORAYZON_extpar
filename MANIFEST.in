@@ -1,0 +1,3 @@
+include src/horayzon_extpar/*.pyx
+include src/horayzon_extpar/*.h
+include src/horayzon_extpar/*.cpp

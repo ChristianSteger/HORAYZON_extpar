@@ -1,0 +1,44 @@
+[build-system]
+requires = [
+    "setuptools>=68",
+    "wheel",
+    "Cython>=3.0",
+    "numpy>=1.23",
+    "tbb-devel==2023.1.0",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "horayzon-extpar"
+version = "0.1.0"
+description = "Embree ray tracing interface to compute grid- and subgrid-scale terrain horizon for ICON grids"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Christian Steger" }]
+dependencies = [
+    "numpy>=1.23",
+    "tbb==2023.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ChristianSteger/HORAYZON_extpar"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["horayzon_extpar"]
+
+[tool.setuptools.package-data]
+horayzon_extpar = ["*.pyx", "*.h", "*.cpp"]
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux*"
+archs = ["x86_64"]
+build-verbosity = 1
+manylinux-x86_64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.linux]
+repair-wheel-command = [
+    "LD_LIBRARY_PATH=\"{project}/.embree_cache/embree-4.4.1/lib64:$LD_LIBRARY_PATH\" auditwheel repair --exclude libtbb.so.12 -w {dest_dir} {wheel}",
+]
