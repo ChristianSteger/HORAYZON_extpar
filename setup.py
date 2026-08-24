@@ -12,16 +12,11 @@ import numpy as np
 
 path_lib_conda = os.environ["CONDA_PREFIX"] + "/lib/"
 print(os.environ["CONDA_PREFIX"])
-if sys.platform in ["linux", "linux2"]:
+if sys.platform == "linux":
     print("Operating system: Linux")
     lib_end = ".so"
     compiler = "gcc"
     extra_compile_args = ["-O3"]
-elif sys.platform in ["darwin"]:
-    print("Operating system: Mac OS X")
-    lib_end = ".dylib"
-    compiler = "clang"
-    extra_compile_args = ["-O3", "-std=c++11"]
 else:
     raise ValueError("Unsupported operating system")
 include_dirs_cpp = [np.get_include()]
