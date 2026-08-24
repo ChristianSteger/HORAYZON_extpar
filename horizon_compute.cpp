@@ -423,37 +423,6 @@ void CppTerrain::horizon_vertex(
     horizon_acc = deg2rad(horizon_acc);
     elev_angle_min = deg2rad(elev_angle_min);
 
-    cout << "num_azim: " << num_azim << endl;
-    cout << "azim_offset: " << rad2deg(azim_offset) << " deg" << endl;
-    cout << "dist_search: " << dist_search << " m" << endl;
-    cout << "ray_origin_elev: " << ray_origin_elev << " m" << endl;
-    cout << "horizon_acc: " << rad2deg(horizon_acc) << " deg" << endl;
-    cout << "elev_angle_min: " << rad2deg(elev_angle_min) << " deg" << endl;
-
-    // Test data access
-    cout << "tri_vert_cl[3]: " << tri_vert_cl[3] << endl;
-    cout << "tri_face_cl[3]: " << tri_face_cl[3] << endl;
-    cout << "num_vert_cl: " << num_vert_cl << endl;
-    cout << "num_face_cl: " << num_face_cl << endl;
-    cout << "earth_centre_cl.z: " << earth_centre_cl.z << endl;
-    cout << "north_pole_cl.z: " << north_pole_cl.z << endl;
-
-    // // Further tests
-    // geom_point a = {0.2, 2.3, 13.0};
-    // geom_point b = {0.5, 1.5, 2.5};
-    // geom_vector c = a - b;
-    // cout << "c.x: " << c.x << endl;
-    // cout << "c.y: " << c.y << endl;
-    // cout << "c.z: " << c.z << endl;
-
-    // geom_vector d = {0.2, 2.3, 13.0};
-    // geom_vector e = {0.5, 1.5, 2.5};
-    // double s = 7.3;
-    // geom_vector f = d - e * s;
-    // cout << "f.x: " << f.x << endl;
-    // cout << "f.y: " << f.y << endl;
-    // cout << "f.z: " << f.z << endl;
-
     // Evaluated trigonometric functions for rotation along azimuth/elevation
     // angle
     double azim_sin = sin(deg2rad(360.0) / (double)num_azim);
@@ -480,24 +449,15 @@ void CppTerrain::horizon_vertex(
         };
         geom_vector sphere_normal = vertex - earth_centre_cl;
         unit_vector(sphere_normal);
-        // cout << std::setprecision(8) << "sphere_normal.x: " << sphere_normal.x << endl;
-        // cout << std::setprecision(8) << "sphere_normal.y: " << sphere_normal.y << endl;
-        // cout << std::setprecision(8) << "sphere_normal.z: " << sphere_normal.z << endl;
 
         // Compute north direction (orthogonal to sphere normal)
         geom_vector v_n = north_pole_cl - vertex;
         double dot_prod = dot_product(v_n, sphere_normal);
         geom_vector north_dir = v_n - sphere_normal * dot_prod;
         unit_vector(north_dir);
-        // cout << std::setprecision(8) << "north_dir.x: " << north_dir.x << endl;
-        // cout << std::setprecision(8) << "north_dir.y: " << north_dir.y << endl;
-        // cout << std::setprecision(8) << "north_dir.z: " << north_dir.z << endl;
 
         // Elevate origin for ray tracing by 'safety margin'
         geom_point ray_origin = vertex + sphere_normal * ray_origin_elev;
-        // cout << std::setprecision(8) << "ray_origin.x: " << ray_origin.x << endl;
-        // cout << std::setprecision(8) << "ray_origin.y: " << ray_origin.y << endl;
-        // cout << std::setprecision(8) << "ray_origin.z: " << ray_origin.z << endl;
         // The origin of the ray is slightly elevated to avoid potential ray-
         // terrain collisions near the origin due to numerical imprecisions.
 
@@ -554,20 +514,6 @@ void CppTerrain::horizon_centroid(
     horizon_acc = deg2rad(horizon_acc);
     elev_angle_min = deg2rad(elev_angle_min);
 
-    cout << "num_azim: " << num_azim << endl;
-    cout << "dist_search: " << dist_search << " m" << endl;
-    cout << "ray_origin_elev: " << ray_origin_elev << " m" << endl;
-    cout << "horizon_acc: " << rad2deg(horizon_acc) << " deg" << endl;
-    cout << "elev_angle_min: " << rad2deg(elev_angle_min) << " deg" << endl;
-
-    // Test data access
-    cout << "tri_vert_cl[3]: " << tri_vert_cl[3] << endl;
-    cout << "tri_face_cl[3]: " << tri_face_cl[3] << endl;
-    cout << "num_vert_cl: " << num_vert_cl << endl;
-    cout << "num_face_cl: " << num_face_cl << endl;
-    cout << "earth_centre_cl.z: " << earth_centre_cl.z << endl;
-    cout << "north_pole_cl.z: " << north_pole_cl.z << endl;
-
     // Evaluated trigonometric functions for rotation along azimuth/elevation
     // angle
     double azim_sin = sin(deg2rad(360.0) / (double)num_azim);
@@ -608,13 +554,7 @@ void CppTerrain::horizon_centroid(
 
         // Compute triangle centroid and triangle normal (unit vector)
         geom_point centroid = compute_centroid(vert_0, vert_1, vert_2);
-        // cout << std::setprecision(8) << "centroid.x: " << centroid.x << endl;
-        // cout << std::setprecision(8) << "centroid.y: " << centroid.y << endl;
-        // cout << std::setprecision(8) << "centroid.z: " << centroid.z << endl;
         geom_vector tri_normal = get_triangle_normal(vert_0, vert_1, vert_2);
-        // cout << std::setprecision(8) << "tri_normal.x: " << tri_normal.x << endl;
-        // cout << std::setprecision(8) << "tri_normal.y: " << tri_normal.y << endl;
-        // cout << std::setprecision(8) << "tri_normal.z: " << tri_normal.z << endl;
 
         // Compute sphere normal and north direction (orthogonal to sphere
         // normal)
