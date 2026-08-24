@@ -1,7 +1,7 @@
 cimport numpy as np
 import numpy as np
 
-cdef extern from "horizon_comp.h" namespace "shapes":
+cdef extern from "horizon_compute.h" namespace "shapes":
     cdef cppclass CppTerrain:
         CppTerrain()
         void initialise(

@@ -35,7 +35,7 @@ os.environ["CC"] = compiler
 
 setup(ext_modules=cythonize(Extension(
            "horizon",
-           sources=["horizon.pyx", "horizon_comp.cpp"],
+           sources=["horizon.pyx", "horizon_compute.cpp"],
            include_dirs=include_dirs_cpp,
            extra_objects=extra_objects_cpp,
            extra_compile_args=extra_compile_args,

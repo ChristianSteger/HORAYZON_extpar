@@ -1,4 +1,4 @@
-#include "horizon_comp.h"
+#include "horizon_compute.h"
 
 #include <chrono>
 #include <cmath>
