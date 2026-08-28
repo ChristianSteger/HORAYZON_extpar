@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horayzon-extpar"
-version = "0.1.0"
+version = "1.0.1"
 description = "Embree ray tracing interface to compute grid- and subgrid-scale terrain horizon for ICON grids"
 readme = "README.md"
 license = { file = "LICENSE" }
