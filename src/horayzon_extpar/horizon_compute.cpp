@@ -1,5 +1,7 @@
 #include "horizon_compute.h"
 
+#include <algorithm>
+#include <cfloat>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -396,6 +398,16 @@ void CppTerrain::initialise(
     cout << "Number of triangle mesh vertices: " << num_vert << endl;
     cout << "Number of triangle mesh faces: " << num_face << endl;
 
+    // Maximal absolute coordinate of triangle mesh vertices
+    max_abs_coord_cl = 0.0;
+    for (size_t i = 0; i < (size_t)num_vert * 3; i++) {
+        max_abs_coord_cl = std::max(max_abs_coord_cl,
+            (double)std::fabs(tri_vert[i]));
+    }
+    cout << std::setprecision(1) << std::fixed
+        << "Maximal absolute coordinate of triangle mesh: "
+        << max_abs_coord_cl << " m" << endl;
+
     // Build bounding volume hierarchy (BVH)
     scene = initializeScene(
         device,
@@ -504,7 +516,7 @@ void CppTerrain::horizon_centroid(
     int num_azim,
     unsigned int* slice_loc,
     float dist_search,
-    double ray_origin_elev,
+    double ray_offset_factor,
     double horizon_acc,
     double elev_angle_min,
     float* horizon
@@ -513,6 +525,12 @@ void CppTerrain::horizon_centroid(
     // Convert units
     horizon_acc = deg2rad(horizon_acc);
     elev_angle_min = deg2rad(elev_angle_min);
+
+    // Compute offset of ray origin from triangle surface
+    double ray_offset = ray_offset_factor * (double)FLT_EPSILON
+        * max_abs_coord_cl;
+    cout << std::setprecision(4) << std::fixed
+        << "Offset of ray origin: " << ray_offset << " m" << endl;
 
     // Evaluated trigonometric functions for rotation along azimuth/elevation
     // angle
@@ -565,10 +583,9 @@ void CppTerrain::horizon_centroid(
         geom_vector north_dir = v_n - sphere_normal * dot_prod;
         unit_vector(north_dir);
 
-        // Elevate origin for ray tracing by 'safety margin'
-        // geom_point ray_origin = centroid + sphere_normal * ray_origin_elev;
-        geom_point ray_origin = centroid + tri_normal * ray_origin_elev;
-        // The origin of the ray is slightly elevated to avoid potential ray-
+        // Offset ray origin along the triangle normal
+        geom_point ray_origin = centroid + tri_normal * ray_offset;
+        // The origin of the ray is slightly offset to avoid potential ray-
         // terrain collisions near the origin due to numerical imprecisions.
 
         // Compute terrain horizon

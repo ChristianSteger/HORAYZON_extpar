@@ -26,7 +26,7 @@ cdef extern from "horizon_compute.h" namespace "shapes":
             int num_azim,
             unsigned int* slice_loc,
             float dist_search,
-            double ray_origin_elev,
+            double ray_offset_factor,
             double horizon_acc,
             double elev_angle_min,
             float* horizon,
@@ -174,7 +174,7 @@ cdef class Terrain:
         int num_azim,
         np.ndarray[np.uint32_t, ndim = 1] slice_loc,
         float dist_search,
-        double ray_origin_elev,
+        double ray_offset_factor,
         double horizon_acc,
         double elev_angle_min,
         ):
@@ -189,8 +189,10 @@ cdef class Terrain:
             Array with start and stop index of considered centroids (2)
         dist_search : float
             Radial search distance for horizon computation [m]
-        ray_origin_elev : double
-            Vertical elevation of ray origin above surface [m]
+        ray_offset_factor : double
+            Factor for the offset of the ray origin from the triangle surface
+            along the triangle normal. The offset is computed as
+            ray_offset_factor * FLT_EPSILON * max(abs(tri_vert)) [-]
         horizon_acc : double
             Accuracy of horizon computation [deg]
         elev_angle_min : double
@@ -215,9 +217,9 @@ cdef class Terrain:
             raise ValueError(
                 "Search distance must be in the range [1'000, 500'000] m"
             )
-        if (ray_origin_elev < 0.1):
-            raise TypeError(
-                "Minimal allowed value for 'ray_origin_elev' is 0.1 m"
+        if (ray_offset_factor < 2.0):
+            raise ValueError(
+                "Minimal allowed value for 'ray_offset_factor' is 2.0"
             )
         if (horizon_acc < 0.001) or (horizon_acc > 10.0):
             raise ValueError(
@@ -238,7 +240,7 @@ cdef class Terrain:
             num_azim,
             &slice_loc[0],
             dist_search,
-            ray_origin_elev,
+            ray_offset_factor,
             horizon_acc,
             elev_angle_min,
             &horizon[0, 0],

@@ -44,6 +44,7 @@ public:
     int num_face_cl;
     geom_point earth_centre_cl;
     geom_point north_pole_cl;
+    double max_abs_coord_cl = 0.0;
     CppTerrain();
     ~CppTerrain();
     void initialise(
@@ -68,7 +69,7 @@ public:
         int num_azim,
         unsigned int* slice_loc,
         float dist_search,
-        double ray_origin_elev,
+        double ray_offset_factor,
         double horizon_acc,
         double elev_angle_min,
         float* horizon
