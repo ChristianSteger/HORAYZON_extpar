@@ -189,15 +189,15 @@ inline double min_dot_product(
  * @brief Compute the direction that minimises the maximal angle to a set of
  *        unit vectors.
  *
- * This function minimises the largest angle between the unit vector d and
- * the unit vectors n_k. This direction is the centre of the smallest spherical
- * cap that contains all n_k, which is defined by either one, two or three of
- * the n_k. The solution is found exactly by enumerating all these candidate
- * directions:
+ * This function computes the unit vector d that minimises the largest angle
+ * to the unit vectors n_k. This direction is the centre of the smallest
+ * spherical cap that contains all n_k, which is defined by either one, two
+ * or three of the n_k. The solution is found exactly by enumerating all
+ * these candidate directions:
  * - single vectors: n_i
  * - pairs of vectors: normalised bisector of n_i and n_j
  * - triples of vectors: direction with equal angle to n_i, n_j and n_k
- * and selecting the candidate with the largest min(dot((d * n_k)). The
+ * and selecting the candidate with the largest min_k(dot(d, n_k)). The
  * solution is only meaningful if all n_k lie in an open hemisphere
  * (min_cos > 0).
  *
@@ -369,8 +369,8 @@ void adjacent_triangle_geometry(
  * @param adj Adjacent triangles of the vertex with normals and edges (see
  *            function 'adjacent_triangle_geometry').
  * @param dir_offset Offset direction (unit vector) [-].
- * @param clearance Relative distance from the tip of 'dir_offset' to the
- *                  adjacent triangles in the range [0.0, 1.0] [-].
+ * @param clearance Minimal relative distance from the tip of 'dir_offset'
+ *                  to the adjacent triangles in the range (0.0, 1.0] [-].
  * @return Status if a valid offset direction was found.
  */
 bool optimal_offset(
