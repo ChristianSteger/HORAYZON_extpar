@@ -17,10 +17,11 @@ cdef extern from "horizon_compute.h" namespace "shapes":
             double azim_offset,
             unsigned int* slice_loc,
             float dist_search,
-            double ray_origin_elev,
+            double ray_offset_factor,
             double horizon_acc,
             double elev_angle_min,
             float* horizon,
+            float* clearance_out,
         )
         void horizon_centroid(
             int num_azim,
@@ -68,7 +69,7 @@ cdef class Terrain:
         # Check validity of input arguments
         if ((tri_vert.shape[1] != 3) or (tri_face.shape[1] != 3)):
             raise ValueError("Second dimension size of input arrays must be 3")
-        if ((tri_face.min() < 0.0) 
+        if ((tri_face.min() < 0.0)
             or (tri_face.max() > tri_vert.shape[0] - 1)):
             raise ValueError("Indices of 'tri_face' out of range")
         if ((not tri_vert.flags["C_CONTIGUOUS"])
@@ -90,9 +91,10 @@ cdef class Terrain:
         double azim_offset,
         np.ndarray[np.uint32_t, ndim = 1] slice_loc,
         float dist_search,
-        double ray_origin_elev,
+        double ray_offset_factor,
         double horizon_acc,
         double elev_angle_min,
+        bint return_clearance=False,
         ):
         """
         Compute the terrain horizon at the vertices of the triangle mesh.
@@ -103,21 +105,38 @@ cdef class Terrain:
             Number of azimuth positions for horizon
         azim_offset : double
             Offset of first azimuth position from 0.0 [deg]
-        slice_loc : ndarray of float
-            Array with start and stop index of considered vertices (2)
+        slice_loc : ndarray of uint32 (2)
+            Array with start and stop index of considered vertices
         dist_search : float
             Radial search distance for horizon computation [m]
-        ray_origin_elev : double
-            Vertical elevation of ray origin above surface [m]
+        ray_offset_factor : double
+            Factor for the offset of the ray origin from the triangle vertex
+            along the direction with maximal clearance from the adjacent
+            triangles [-]
+            The offset is computed as
+            (ray_offset_factor * FLT_EPSILON * max(abs(tri_vert))) / clearance
+            where clearance is the ratio between the minimal distance of the
+            offset point to the adjacent triangles and the length of the
+            offset (independent of the offset length). The clearance is
+            limited to a minimum of 0.1. If no valid direction is found, the
+            sphere normal (with clearance = 1.0) is used
         horizon_acc : double
             Accuracy of horizon computation [deg]
         elev_angle_min : double
             Threshold for sampling in negative elevation angle direction [deg]
+        return_clearance : bool
+            Additionally return the clearance of the offset direction
 
         Returns
         -------
-        horizon : ndarray of float32
-            Terrain horizon for selected locations (num_loc, num_azim) [deg]
+        horizon : ndarray of float32 (num_loc, num_azim)
+            Terrain horizon for selected locations [deg]
+        clearance : ndarray of float32 (num_loc)
+            Ratio between the minimal distance of the offset ray origin to the
+            adjacent triangles and the length of the offset [-]
+            The value is reported before clipping to a minimum of 0.1. Values
+            are in the range (0.0, 1.0]; NaN indicates that no valid offset
+            direction was found. Only returned if 'return_clearance' is True.
         """
 
         # Check validity of input arguments
@@ -137,9 +156,9 @@ cdef class Terrain:
             raise ValueError(
                 "Search distance must be in the range [1'000, 500'000] m"
             )
-        if (ray_origin_elev < 0.1):
-            raise TypeError(
-                "Minimal allowed value for 'ray_origin_elev' is 0.1 m"
+        if (ray_offset_factor < 2.0):
+            raise ValueError(
+                "Minimal allowed value for 'ray_offset_factor' is 2.0"
             )
         if (horizon_acc < 0.001) or (horizon_acc > 10.0):
             raise ValueError(
@@ -155,18 +174,26 @@ cdef class Terrain:
             horizon = np.empty(
                 (slice_loc[1] - slice_loc[0], num_azim), dtype=np.float32
             )
+        cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] clearance = None
+        cdef float* clearance_ptr = NULL
+        if return_clearance:
+            clearance = np.empty(slice_loc[1] - slice_loc[0], dtype=np.float32)
+            clearance_ptr = &clearance[0]
 
         self.thisptr.horizon_vertex(
             num_azim,
             azim_offset,
             &slice_loc[0],
             dist_search,
-            ray_origin_elev,
+            ray_offset_factor,
             horizon_acc,
             elev_angle_min,
             &horizon[0, 0],
+            clearance_ptr,
         )
 
+        if return_clearance:
+            return np.rad2deg(horizon), clearance
         return np.rad2deg(horizon)
 
     def horizon_centroid(
@@ -185,14 +212,15 @@ cdef class Terrain:
         ----------
         num_azim : int
             Number of azimuth positions for horizon
-        slice_loc : ndarray of float
-            Array with start and stop index of considered centroids (2)
+        slice_loc : ndarray of uint32 (2)
+            Array with start and stop index of considered centroids
         dist_search : float
             Radial search distance for horizon computation [m]
         ray_offset_factor : double
-            Factor for the offset of the ray origin from the triangle surface
-            along the triangle normal. The offset is computed as
-            ray_offset_factor * FLT_EPSILON * max(abs(tri_vert)) [-]
+            Factor for the offset of the ray origin from the triangle centroid
+            along the triangle normal [-]
+            The offset is computed as
+            ray_offset_factor * FLT_EPSILON * max(abs(tri_vert))
         horizon_acc : double
             Accuracy of horizon computation [deg]
         elev_angle_min : double
@@ -200,8 +228,8 @@ cdef class Terrain:
 
         Returns
         -------
-        horizon : ndarray of float32
-            Terrain horizon for selected locations (num_loc, num_azim) [deg]
+        horizon : ndarray of float32 (num_loc, num_azim)
+            Terrain horizon for selected locations [deg]
         """
 
         # Check validity of input arguments

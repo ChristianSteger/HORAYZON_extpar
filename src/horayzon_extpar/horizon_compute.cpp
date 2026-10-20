@@ -1,12 +1,15 @@
 #include "horizon_compute.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cfloat>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <vector>
 
 #include <embree4/rtcore.h>
 #include <tbb/parallel_for.h>
@@ -21,7 +24,24 @@ using namespace shapes;
 #endif
 
 //-----------------------------------------------------------------------------
-// Functions (not dependent on Embree)
+// Structures
+//-----------------------------------------------------------------------------
+
+/**
+ * @brief Indices, unit normals, and unit edge directions of triangles adjacent
+ *        to a vertex.
+ */
+struct AdjacentTriangles {
+    unsigned int idx_vert;
+    const unsigned int* tri_face;
+    std::vector<unsigned int> idx_tri;
+    std::vector<geom_vector> tri_normal;  // unit normals of adjacent triangles
+    std::vector<geom_vector> tri_edge_0;  // unit directions of the two edges
+    std::vector<geom_vector> tri_edge_1;  // of adjacent triangles
+};
+
+//-----------------------------------------------------------------------------
+// Geometric functions not dependent on Embree
 //-----------------------------------------------------------------------------
 
 /**
@@ -84,7 +104,7 @@ void unit_vector(geom_vector& a) {
  * trigonometric function have to be pre-computed.
  *
  * @param v Vector that should be rotated.
- * @param k Unit vector specifying the rotation axis.
+ * @param k Unit vector specifying the rotation axis [-].
  * @param angle_rot_sin Sine of the rotation angle.
  * @param angle_rot_cos Cosine of the rotation angle.
  * @return Rotated vector.
@@ -129,13 +149,13 @@ inline geom_point compute_centroid(
 /**
  * @brief Compute triangle normal (unit vector)
  *
- * This function computes the nomal (unit vector) of a triangle. The direction
- * of the normal vector depends on the ordering of the vertices.
+ * Compute the normal (unit vector) of a triangle. The direction of the normal
+ * vector depends on the winding order of the vertices.
  *
  * @param vert_0 Vertex 0.
  * @param vert_1 Vertex 1.
  * @param vert_2 Vertex 2.
- * @return Triangle normal (unit vector).
+ * @return Triangle normal (unit vector) [-].
  */
 inline geom_vector get_triangle_normal(
     geom_point vert_0,
@@ -147,8 +167,237 @@ inline geom_vector get_triangle_normal(
     return tri_normal;
 }
 
+/**
+ * @brief Compute the minimal dot product between a vector and a set of
+ *        vectors.
+ * @param d Vector.
+ * @param vector_set Set of vectors.
+ * @return Minimal dot product.
+ */
+inline double min_dot_product(
+    geom_vector d,
+    const std::vector<geom_vector>& vector_set
+) {
+    double min_dot_prod = 1.0;
+    for (const geom_vector& n : vector_set) {
+        min_dot_prod = std::min(min_dot_prod, dot_product(d, n));
+    }
+    return min_dot_prod;
+}
+
+/**
+ * @brief Compute the direction that minimises the maximal angle to a set of
+ *        unit vectors.
+ *
+ * This function minimises the largest angle between the unit vector d and
+ * the unit vectors n_k. This direction is the centre of the smallest spherical
+ * cap that contains all n_k, which is defined by either one, two or three of
+ * the n_k. The solution is found exactly by enumerating all these candidate
+ * directions:
+ * - single vectors: n_i
+ * - pairs of vectors: normalised bisector of n_i and n_j
+ * - triples of vectors: direction with equal angle to n_i, n_j and n_k
+ * and selecting the candidate with the largest min(dot((d * n_k)). The
+ * solution is only meaningful if all n_k lie in an open hemisphere
+ * (min_cos > 0).
+ *
+ * @param vector_set Set of unit vectors [-].
+ * @param min_cos Cosine of the largest angle between the computed direction
+ *                and the unit vectors (corresponds to the minimal distance
+ *                between the tip of the cap centre and the planes through
+ *                the origin that have the unit vectors as normals) [-].
+ * @return Cap centre vector (unit vector) [-].
+ */
+geom_vector smallest_enclosing_cap(
+    const std::vector<geom_vector>& vector_set,
+    double& min_cos
+) {
+
+    const std::vector<geom_vector>& n = vector_set;
+    size_t num_vector = n.size();
+    geom_vector cap_centre = {0.0, 0.0, 0.0};
+    min_cos = -2.0;
+
+    // Evaluate candidate direction and keep it if it is the best so far
+    auto evaluate = [&](geom_vector d) {
+        double d_mag = sqrt(dot_product(d, d));
+        if (d_mag < 1.0e-12) {
+            return;  // undefined direction (e.g. collinear vectors)
+        }
+        d = d * (1.0 / d_mag);
+        double cos_d = min_dot_product(d, n);
+        if (cos_d > min_cos) {
+            min_cos = cos_d;
+            cap_centre = d;
+        }
+    };
+
+    for (size_t i = 0; i < num_vector; i++) {
+        // Single vector
+        evaluate(n[i]);
+        for (size_t j = i + 1; j < num_vector; j++) {
+            // Pair of vectors (bisector)
+            evaluate({n[i].x + n[j].x, n[i].y + n[j].y, n[i].z + n[j].z});
+            for (size_t k = j + 1; k < num_vector; k++) {
+                // Triple of vectors (direction with equal angle to all three
+                // vectors; orthogonal to the plane through their tips)
+                geom_vector d = cross_product(n[j] - n[i], n[k] - n[i]);
+                if (dot_product(d, n[i]) < 0.0) {
+                    d = d * -1.0;
+                }
+                evaluate(d);
+            }
+        }
+    }
+
+    return cap_centre;
+
+}
+
+/**
+ * @brief Compute the relative distance between the tip of 'dir_offset'
+ *        (placed at the vertex) and the triangle, i.e. the distance divided
+ *        by the offset length (1).
+ *
+ * First, it is checked if the perpendicular projection of the tip onto the
+ * triangle plane lies within the wedge defined by the two edges of the
+ * triangle at the vertex. If so, the distance to the plane is returned.
+ * Otherwise, the distance to the closest edge or to the vertex is returned.
+ *
+ * @param dir_offset Offset direction (unit vector) [-].
+ * @param tri_normal Normal of triangle (unit vector) [-].
+ * @param edge_0 Direction of the first triangle edge at the vertex
+ *               (unit vector) [-].
+ * @param edge_1 Direction of the second triangle edge at the vertex
+ *               (unit vector) [-].
+ * @return Relative distance from the tip of 'dir_offset' to the wedge in the
+ *         range [0.0, 1.0] [-].
+ */
+inline double wedge_clearance(
+    geom_vector dir_offset,
+    geom_vector tri_normal,
+    geom_vector edge_0,
+    geom_vector edge_1
+) {
+
+    // Check if perpendicular foot lies inside wedge defined by
+    // q = a * edge_0 + b * edge_1; with a, b >= 0
+    double dot_dn = dot_product(dir_offset, tri_normal);
+    geom_vector q = dir_offset - tri_normal * dot_dn;
+    geom_vector c = cross_product(edge_0, edge_1);
+    double a = dot_product(cross_product(q, edge_1), c);
+    double b = dot_product(cross_product(edge_0, q), c);
+    if ((a >= 0.0) && (b >= 0.0)) {
+        return std::fabs(dot_dn);
+    }
+
+    // Distance to closest edge or to vertex
+    double clearance = 1.0;
+    for (geom_vector e : {edge_0, edge_1}) {
+        double dot_de = dot_product(dir_offset, e);
+        if (dot_de > 0.0) {
+            clearance = std::min(clearance,
+                sqrt(std::max(0.0, 1.0 - dot_de * dot_de)));
+        }
+    }
+    return clearance;
+
+}
+
+/**
+ * @brief Compute the unit normals and the unit edge directions of the adjacent
+ *        triangles of a vertex.
+ *
+ * The results are stored in 'adj.tri_normal', 'adj.tri_edge_0' and
+ * 'adj.tri_edge_1'. The direction of the normal vector depends on the
+ * winding order of the vertices. The edges point from the vertex to the two
+ * other corners of the triangle.
+ *
+ * @param tri_vert Coordinates (x, y, z) of triangle vertices [m].
+ * @param adj Adjacent triangles of the vertex with adj.idx_tri set by
+ *            function 'find_adjacent_triangles'.
+ */
+void adjacent_triangle_geometry(
+    const float* tri_vert,
+    AdjacentTriangles& adj
+){
+
+    unsigned int idx_vert = adj.idx_vert;
+    adj.tri_normal.clear();
+    adj.tri_edge_0.clear();
+    adj.tri_edge_1.clear();
+    for (unsigned int idx_tri : adj.idx_tri) {
+        const unsigned int* face = adj.tri_face + ((size_t)idx_tri * 3);
+        geom_point vert[3];
+        for (int j = 0; j < 3; j++) {
+            vert[j] = {
+                tri_vert[(face[j] * 3) + 0],
+                tri_vert[(face[j] * 3) + 1],
+                tri_vert[(face[j] * 3) + 2]
+            };
+        }
+        adj.tri_normal.push_back(get_triangle_normal(vert[0], vert[1],
+            vert[2]));
+        int j_0 = (face[0] == idx_vert) ? 0 : ((face[1] == idx_vert) ? 1 : 2);
+        geom_vector edge_0 = vert[(j_0 + 1) % 3] - vert[j_0];
+        geom_vector edge_1 = vert[(j_0 + 2) % 3] - vert[j_0];
+        unit_vector(edge_0);
+        unit_vector(edge_1);
+        adj.tri_edge_0.push_back(edge_0);
+        adj.tri_edge_1.push_back(edge_1);
+    }
+
+}
+
+/**
+ * @brief Compute the optimal direction for offsetting the ray origin from a
+ *        vertex and its clearance from the adjacent triangles.
+ *
+ * The offset direction is the unit vector that maximises the minimal distance
+ * to the planes of the adjacent triangles (see function
+ * 'smallest_enclosing_cap'). For a terrain (height field) mesh, this distance
+ * is always positive, i.e. an offset along this direction lies above all
+ * adjacent triangles. The mesh must not contain degenerated triangles and all
+ * triangles must have an anti-clockwise winding (viewed from above).
+ *
+ * The clearance is the ratio between the minimal distance of the offset point
+ * to the adjacent triangles (see function 'wedge_clearance') and the offset
+ * length (1). An offset t [m] results in a minimal distance of
+ * t * clearance [m]. At convex locations (e.g. peaks and ridges), it exceeds
+ * the minimal distance to the planes.
+ *
+ * @param adj Adjacent triangles of the vertex with normals and edges (see
+ *            function 'adjacent_triangle_geometry').
+ * @param dir_offset Offset direction (unit vector) [-].
+ * @param clearance Relative distance from the tip of 'dir_offset' to the
+ *                  adjacent triangles in the range [0.0, 1.0] [-].
+ * @return Status if a valid offset direction was found.
+ */
+bool optimal_offset(
+    const AdjacentTriangles& adj,
+    geom_vector& dir_offset,
+    double& clearance
+){
+
+    // Compute direction with maximal clearance from the triangle planes
+    double min_cos;  // minimal distance to adjacent planes (per unit offset)
+    dir_offset = smallest_enclosing_cap(adj.tri_normal, min_cos);
+    if (min_cos <= 0.0) {
+        return false;  // no common open hemisphere exists
+    }
+
+    // Compute exact clearance from adjacent triangles
+    clearance = 1.0;  // clearance >= min_cos
+    for (size_t i = 0; i < adj.tri_normal.size(); i++) {
+        clearance = std::min(clearance, wedge_clearance(dir_offset,
+            adj.tri_normal[i], adj.tri_edge_0[i], adj.tri_edge_1[i]));
+    }
+    return true;
+
+}
+
 //-----------------------------------------------------------------------------
-// Functions (Embree related)
+// Embree related functions
 //-----------------------------------------------------------------------------
 
 /**
@@ -358,12 +607,75 @@ void terrain_horizon(
 
 }
 
+/**
+ * @brief Callback function for the point query that searches the adjacent
+ *        triangles of a vertex.
+ *
+ * Embree calls this function for every triangle in the BVH leaf nodes that
+ * overlap with the query domain. Only triangles that actually contain the
+ * query vertex (according to 'tri_face') are kept.
+ *
+ * @param args Point query function arguments.
+ * @return Status if query radius was modified (always false).
+ */
+bool adjacent_triangles_callback(RTCPointQueryFunctionArguments* args) {
+    AdjacentTriangles* adj = (AdjacentTriangles*)args->userPtr;
+    const unsigned int* face = adj->tri_face + ((size_t)args->primID * 3);
+    if ((face[0] == adj->idx_vert) || (face[1] == adj->idx_vert)
+        || (face[2] == adj->idx_vert)) {
+        adj->idx_tri.push_back(args->primID);
+    }
+    return false;
+}
+
+/**
+ * @brief Search the adjacent triangles of a vertex.
+ *
+ * The adjacent triangles of the vertex are searched with an Embree point
+ * query. Their indices are stored in 'adj.idx_tri'.
+ *
+ * @param scene Embree scene.
+ * @param tri_vert Coordinates (x, y, z) of triangle vertices [m].
+ * @param idx_vert Index of the vertex.
+ * @param query_radius Radius of the point query [m].
+ * @param adj User data for the point query (reused between calls).
+ * @return Status if at least one adjacent triangle was found.
+ */
+bool find_adjacent_triangles(
+    RTCScene scene,
+    const float* tri_vert,
+    unsigned int idx_vert,
+    float query_radius,
+    AdjacentTriangles& adj
+){
+
+    adj.idx_vert = idx_vert;
+    adj.idx_tri.clear();
+    struct RTCPointQuery query;
+    query.x = tri_vert[(idx_vert * 3) + 0];
+    query.y = tri_vert[(idx_vert * 3) + 1];
+    query.z = tri_vert[(idx_vert * 3) + 2];
+    query.time = 0.0f;
+    query.radius = query_radius;
+    struct RTCPointQueryContext context;
+    rtcInitPointQueryContext(&context);
+    rtcPointQuery(scene, &query, &context, adjacent_triangles_callback,
+        (void*)&adj);
+
+    // Remove duplicates (a triangle can be referenced by multiple leaf nodes)
+    std::sort(adj.idx_tri.begin(), adj.idx_tri.end());
+    adj.idx_tri.erase(std::unique(adj.idx_tri.begin(), adj.idx_tri.end()),
+        adj.idx_tri.end());
+    return !adj.idx_tri.empty();
+
+}
+
 //-----------------------------------------------------------------------------
 // Class constructor/destructor and class methods
 //-----------------------------------------------------------------------------
 
 CppTerrain::CppTerrain() {
-    
+
     device = initializeDevice();
     scene = nullptr;
 }
@@ -424,16 +736,34 @@ void CppTerrain::horizon_vertex(
     double azim_offset,
     unsigned int* slice_loc,
     float dist_search,
-    double ray_origin_elev,
+    double ray_offset_factor,
     double horizon_acc,
     double elev_angle_min,
-    float* horizon
+    float* horizon,
+    float* clearance_out
 ) {
 
     // Convert units
     azim_offset = deg2rad(azim_offset);
     horizon_acc = deg2rad(horizon_acc);
     elev_angle_min = deg2rad(elev_angle_min);
+
+    // Compute offset of ray origin from vertex
+    double ray_offset = ray_offset_factor * (double)FLT_EPSILON
+        * max_abs_coord_cl;
+    cout << std::setprecision(4) << std::fixed
+        << "Offset of ray origin: " << ray_offset << " m" << endl;
+
+    // Radius of point query to search adjacent triangles of vertex
+    float query_radius = (float)(10.0 * (double)FLT_EPSILON
+        * max_abs_coord_cl);
+    // (triangles that are found but not adjacent are removed via 'tri_face')
+
+    // Lower limit for clearance from adjacent triangles (-> offset is
+    // increased by at most a factor of 10)
+    const double clearance_lim = 0.1;  // ca. 84.3 deg
+
+    std::atomic<size_t> num_fallback(0);
 
     // Evaluated trigonometric functions for rotation along azimuth/elevation
     // angle
@@ -450,10 +780,18 @@ void CppTerrain::horizon_vertex(
     tbb::blocked_range<size_t>(slice_loc[0], slice_loc[1]), 0.0,
     [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
+    // User data for point query (private for each TBB task)
+    AdjacentTriangles adj;
+    adj.tri_face = tri_face_cl;
+    adj.idx_tri.reserve(16);
+    adj.tri_normal.reserve(16);
+    adj.tri_edge_0.reserve(16);
+    adj.tri_edge_1.reserve(16);
+
     // for (size_t i = (size_t)slice_loc[0]; i < (size_t)slice_loc[1]; i++){
     for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
 
-         // Compute sphere normal
+        // Compute sphere normal
         geom_point vertex = {
             tri_vert_cl[(i * 3) + 0],
             tri_vert_cl[(i * 3) + 1],
@@ -468,9 +806,33 @@ void CppTerrain::horizon_vertex(
         geom_vector north_dir = v_n - sphere_normal * dot_prod;
         unit_vector(north_dir);
 
-        // Elevate origin for ray tracing by 'safety margin'
-        geom_point ray_origin = vertex + sphere_normal * ray_origin_elev;
-        // The origin of the ray is slightly elevated to avoid potential ray-
+        // Compute optimal offset direction and clearance
+        geom_vector dir_offset;
+        double clearance;
+        bool valid = find_adjacent_triangles(scene, tri_vert_cl,
+            (unsigned int)i, query_radius, adj);
+        if (valid) {
+            adjacent_triangle_geometry(tri_vert_cl, adj);
+            valid = optimal_offset(adj, dir_offset, clearance);
+        }
+        if (!valid) {
+            dir_offset = sphere_normal;
+            clearance = 1.0;
+            num_fallback++;
+        }
+
+        // Save clearance (before clipping; NaN for no valid offset direction)
+        if (clearance_out) {
+            clearance_out[i - slice_loc[0]] = valid ? (float)clearance
+                : std::numeric_limits<float>::quiet_NaN();
+        }
+
+        clearance = std::max(clearance, clearance_lim);
+
+        // Offset ray origin along an optimal direction (scaled so that
+        // the distance to all adjacent triangles is at least 'ray_offset')
+        geom_point ray_origin = vertex + dir_offset * (ray_offset / clearance);
+        // The origin of the ray is slightly offset to avoid potential ray-
         // terrain collisions near the origin due to numerical imprecisions.
 
         // Compute terrain horizon
@@ -509,6 +871,13 @@ void CppTerrain::horizon_vertex(
         / (double)((slice_loc[1] - slice_loc[0]) * num_azim);
     cout << std::setprecision(2) << "Average number of rays per cell and "
         "azimuth sector: " << ratio << endl;
+
+    // Print number of vertices with sphere normal as fallback offset direction
+    if (num_fallback > 0) {
+        cout << "Warning: no valid offset direction found for "
+            << num_fallback << " vertices (sphere normal used instead)"
+            << endl;
+    }
 
 }
 

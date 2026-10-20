@@ -60,10 +60,11 @@ public:
         double azim_offset,
         unsigned int* slice_loc,
         float dist_search,
-        double ray_origin_elev,
+        double ray_offset_factor,
         double horizon_acc,
         double elev_angle_min,
-        float* horizon
+        float* horizon,
+        float* clearance_out
     );
     void horizon_centroid(
         int num_azim,
