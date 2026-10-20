@@ -31,6 +31,17 @@ cdef extern from "horizon_compute.h" namespace "shapes":
             double elev_angle_min,
             float* horizon,
         )
+        void horizon_arbitrary(
+            double* coords,
+            int num_loc,
+            int num_azim,
+            float dist_search,
+            double height_min,
+            double horizon_acc,
+            double elev_angle_min,
+            float* horizon,
+            float* height_above,
+        )
 
 cdef class Terrain:
 
@@ -245,3 +256,94 @@ cdef class Terrain:
         )
 
         return np.rad2deg(horizon)
+
+    def horizon_arbitrary(
+        self,
+        np.ndarray[np.float64_t, ndim = 2, mode = "c"] coords,
+        int num_azim,
+        float dist_search,
+        double height_min,
+        double horizon_acc,
+        double elev_angle_min,
+        ):
+        """
+        Compute the terrain horizon at arbitrary locations.
+
+        For each location, the height above the triangle mesh is determined
+        along the sphere normal. Locations with a height below 'height_min',
+        including those below the triangle mesh, are elevated to 'height_min'.
+        All other locations remain unchanged.
+
+        Parameters
+        ----------
+        coords : ndarray of float64 (num_loc, 3)
+            Cartesian coordinates of locations in the same coordinate system
+            as the triangle mesh vertices [m]
+        num_azim : int
+            Number of azimuth positions for horizon
+        dist_search : float
+            Radial search distance for horizon computation [m]
+        height_min : double
+            Minimal height of locations above the triangle mesh [m]
+        horizon_acc : double
+            Accuracy of horizon computation [deg]
+        elev_angle_min : double
+            Threshold for sampling in negative elevation angle direction [deg]
+
+        Returns
+        -------
+        horizon : ndarray of float32 (num_loc, num_azim)
+            Terrain horizon for locations [deg]
+            NaN for locations outside of the triangle mesh domain
+        height_above : ndarray of float32 (num_loc)
+            Height of locations above the triangle mesh before elevating to
+            'height_min' [m]
+            NaN for locations outside of the triangle mesh domain
+        """
+
+        # Check validity of input arguments
+        if (coords.shape[1] != 3):
+            raise ValueError("Second dimension size of 'coords' must be 3")
+        if (coords.shape[0] < 1):
+            raise ValueError("At least one location is required")
+        if (num_azim < 4):
+            raise ValueError(
+                "Number of azimuth position must be at least 4"
+            )
+        if (dist_search < 1_000.0) or (dist_search > 500_000.0):
+            raise ValueError(
+                "Search distance must be in the range [1'000, 500'000] m"
+            )
+        if (height_min < 0.5):
+            raise ValueError(
+                "Minimal allowed value for 'height_min' is 0.5 m"
+            )
+        if (horizon_acc < 0.001) or (horizon_acc > 10.0):
+            raise ValueError(
+                "Horizon accuracy must be in the range [0.001, 10.0] deg"
+            )
+        if ((elev_angle_min - (2.0 * horizon_acc)) <= -90.0):
+            raise ValueError(
+                "Invalid combination of 'elev_angle_min' and 'horizon_acc'"
+            )
+
+        # Allocate arrays for output
+        cdef int num_loc = coords.shape[0]
+        cdef np.ndarray[np.float32_t, ndim = 2, mode = "c"] \
+            horizon = np.empty((num_loc, num_azim), dtype=np.float32)
+        cdef np.ndarray[np.float32_t, ndim = 1, mode = "c"] \
+            height_above = np.empty(num_loc, dtype=np.float32)
+
+        self.thisptr.horizon_arbitrary(
+            &coords[0, 0],
+            num_loc,
+            num_azim,
+            dist_search,
+            height_min,
+            horizon_acc,
+            elev_angle_min,
+            &horizon[0, 0],
+            &height_above[0],
+        )
+
+        return np.rad2deg(horizon), height_above

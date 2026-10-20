@@ -1,10 +1,12 @@
 #include "horizon_compute.h"
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 
 #include <embree4/rtcore.h>
 #include <tbb/parallel_for.h>
@@ -248,6 +250,41 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
 }
 
 /**
+ * @brief Ray casting with intersection testing (distance to closest hit).
+ * @param scene Embree scene.
+ * @param ox x-coordinate of the ray origin [m].
+ * @param oy y-coordinate of the ray origin [m].
+ * @param oz z-coordinate of the ray origin [m].
+ * @param dx x-component of the ray direction (unit vector) [-].
+ * @param dy y-component of the ray direction (unit vector) [-].
+ * @param dz z-component of the ray direction (unit vector) [-].
+ * @param dist_search Search distance for potential collision [m].
+ * @return Distance to the closest hit (negative value: no hit) [m].
+ */
+float castRay_intersect1(RTCScene scene, float ox, float oy, float oz,
+    float dx, float dy, float dz, float dist_search){
+    struct RTCRayHit rayhit;
+    rayhit.ray.org_x = ox;
+    rayhit.ray.org_y = oy;
+    rayhit.ray.org_z = oz;
+    rayhit.ray.dir_x = dx;
+    rayhit.ray.dir_y = dy;
+    rayhit.ray.dir_z = dz;
+    rayhit.ray.tnear = 0.0f;
+    rayhit.ray.tfar = dist_search;
+    rayhit.ray.time = 0.0f;
+    rayhit.ray.mask = 1;
+    rayhit.ray.flags = 0;
+    rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+    rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
+    rtcIntersect1(scene, &rayhit); // intersect ray with scene
+    if (rayhit.hit.geomID == RTC_INVALID_GEOMETRY_ID) {
+        return -1.0f;
+    }
+    return rayhit.ray.tfar;
+}
+
+/**
  * @brief Computes the terrain horizon for a specific point.
  *
  * This function computes the terrain horizon for a specific point on the
@@ -272,7 +309,7 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
  * @param elev_cos_2ha Cosine of the double elevation angle spacing.
  * @param horizon Horizon array [rad].
  * @param idx_horizon Index for horizon array
- * @param num_rays Number of rays casted.
+ * @param num_rays Number of rays cast.
  */
 void terrain_horizon(
     RTCScene scene,
@@ -607,5 +644,125 @@ void CppTerrain::horizon_centroid(
         / (double)((slice_loc[1] - slice_loc[0]) * num_azim);
     cout << std::setprecision(2) << "Average number of rays per cell and "
         "azimuth sector: " << ratio << endl;
+
+}
+
+void CppTerrain::horizon_arbitrary(
+    double* coords,
+    int num_loc,
+    int num_azim,
+    float dist_search,
+    double height_min,
+    double horizon_acc,
+    double elev_angle_min,
+    float* horizon,
+    float* height_above
+) {
+
+    // Convert units
+    horizon_acc = deg2rad(horizon_acc);
+    elev_angle_min = deg2rad(elev_angle_min);
+
+    // Height above the location from which a ray is cast downwards to
+    // determine the height of the location above the triangle mesh (must
+    // exceed the terrain height above the location)
+    const double ray_start_height = 10000.0;  // [m]
+
+    std::atomic<size_t> num_outside(0);
+
+    // Evaluated trigonometric functions for rotation along azimuth/elevation
+    // angle
+    double azim_sin = sin(deg2rad(360.0) / (double)num_azim);
+    double azim_cos = cos(deg2rad(360.0) / (double)num_azim);
+    double elev_sin_2ha = sin(2.0 * horizon_acc);
+    double elev_cos_2ha = cos(2.0 * horizon_acc);
+    // Note: sin(-x) == -sin(x), cos(x) == cos(-x)
+
+    auto start_ray = std::chrono::high_resolution_clock::now();
+    size_t num_rays = 0;
+
+    num_rays += tbb::parallel_reduce(
+    tbb::blocked_range<size_t>(0, (size_t)num_loc), (size_t)0,
+    [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
+
+    // for (size_t i = 0; i < (size_t)num_loc; i++){
+    for (size_t i=r.begin(); i<r.end(); ++i) {  // parallel
+
+        // Compute sphere normal
+        geom_point loc = {
+            coords[(i * 3) + 0],
+            coords[(i * 3) + 1],
+            coords[(i * 3) + 2]
+        };
+        geom_vector sphere_normal = loc - earth_centre_cl;
+        unit_vector(sphere_normal);
+
+        // Compute north direction (orthogonal to sphere normal)
+        geom_vector v_n = north_pole_cl - loc;
+        double dot_prod = dot_product(v_n, sphere_normal);
+        geom_vector north_dir = v_n - sphere_normal * dot_prod;
+        unit_vector(north_dir);
+
+        // Compute height of location above the triangle mesh
+        geom_point ray_start = loc + sphere_normal * ray_start_height;
+        float dist = castRay_intersect1(scene, (float)ray_start.x,
+            (float)ray_start.y, (float)ray_start.z, (float)-sphere_normal.x,
+            (float)-sphere_normal.y, (float)-sphere_normal.z,
+            std::numeric_limits<float>::infinity());
+        if (dist < 0.0f) {
+            // location outside of triangle mesh
+            height_above[i] = std::numeric_limits<float>::quiet_NaN();
+            for (int j = 0; j < num_azim; j++) {
+                horizon[(i * num_azim) + j]
+                    = std::numeric_limits<float>::quiet_NaN();
+            }
+            num_outside++;
+            continue;
+        }
+        double height = (double)dist - ray_start_height;
+        height_above[i] = (float)height;
+
+        // Elevate location to minimal height above triangle mesh (if
+        // required)
+        geom_point ray_origin = loc;
+        if (height < height_min) {
+            ray_origin = loc + sphere_normal * (height_min - height);
+        }
+
+        // Compute terrain horizon
+        terrain_horizon(
+            scene,
+            ray_origin,
+            sphere_normal,
+            north_dir,
+            num_azim,
+            0.0,
+            horizon_acc,
+            dist_search,
+            elev_angle_min,
+            azim_sin,
+            azim_cos,
+            elev_sin_2ha,
+            elev_cos_2ha,
+            horizon,
+            i,
+            num_rays
+        );
+
+    }
+
+    return num_rays;  // parallel
+    }, std::plus<size_t>());  // parallel
+
+    auto end_ray = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_ray = end_ray - start_ray;
+    cout << std::setprecision(2) << "Ray tracing: " << time_ray.count()
+        << " s" << endl;
+
+    // Print number of locations outside of triangle mesh
+    if (num_outside > 0) {
+        cout << "Warning: " << num_outside << " locations outside of triangle "
+            "mesh" << endl;
+    }
 
 }
