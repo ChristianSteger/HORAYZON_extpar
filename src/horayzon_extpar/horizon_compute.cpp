@@ -751,8 +751,8 @@ void CppTerrain::horizon_vertex(
     // Compute offset of ray origin from vertex
     double ray_offset = ray_offset_factor * (double)FLT_EPSILON
         * max_abs_coord_cl;
-    cout << std::setprecision(4) << std::fixed
-        << "Offset of ray origin: " << ray_offset << " m" << endl;
+    cout << std::setprecision(3) << std::fixed
+        << "Offset of ray origin (unadjusted): " << ray_offset << " m" << endl;
 
     // Radius of point query to search adjacent triangles of vertex
     float query_radius = (float)(10.0 * (double)FLT_EPSILON
@@ -898,7 +898,7 @@ void CppTerrain::horizon_centroid(
     // Compute offset of ray origin from triangle surface
     double ray_offset = ray_offset_factor * (double)FLT_EPSILON
         * max_abs_coord_cl;
-    cout << std::setprecision(4) << std::fixed
+    cout << std::setprecision(3) << std::fixed
         << "Offset of ray origin: " << ray_offset << " m" << endl;
 
     // Evaluated trigonometric functions for rotation along azimuth/elevation
