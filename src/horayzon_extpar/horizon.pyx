@@ -156,9 +156,9 @@ cdef class Terrain:
             raise ValueError(
                 "Search distance must be in the range [1'000, 500'000] m"
             )
-        if (ray_offset_factor < 2.0):
+        if (ray_offset_factor < 1.0):
             raise ValueError(
-                "Minimal allowed value for 'ray_offset_factor' is 2.0"
+                "Minimal allowed value for 'ray_offset_factor' is 1.0"
             )
         if (horizon_acc < 0.001) or (horizon_acc > 10.0):
             raise ValueError(
@@ -245,9 +245,9 @@ cdef class Terrain:
             raise ValueError(
                 "Search distance must be in the range [1'000, 500'000] m"
             )
-        if (ray_offset_factor < 2.0):
+        if (ray_offset_factor < 1.0):
             raise ValueError(
-                "Minimal allowed value for 'ray_offset_factor' is 2.0"
+                "Minimal allowed value for 'ray_offset_factor' is 1.0"
             )
         if (horizon_acc < 0.001) or (horizon_acc > 10.0):
             raise ValueError(
