@@ -75,5 +75,16 @@ public:
         double elev_angle_min,
         float* horizon
     );
+    void horizon_arbitrary(
+        double* coords,
+        int num_loc,
+        int num_azim,
+        float dist_search,
+        double height_min,
+        double horizon_acc,
+        double elev_angle_min,
+        float* horizon,
+        float* height_above
+    );
 };
 }
