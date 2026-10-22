@@ -759,6 +759,16 @@ void CppTerrain::horizon_arbitrary(
     cout << std::setprecision(2) << "Ray tracing: " << time_ray.count()
         << " s" << endl;
 
+    // Print number of rays needed for location and azimuth direction
+    cout << "Number of rays shot: " << num_rays << std::endl;
+    size_t num_loc_inside = (size_t)num_loc - num_outside;
+    if (num_loc_inside > 0) {
+        double ratio = (double)num_rays
+            / (double)(num_loc_inside * (size_t)num_azim);
+        cout << std::setprecision(2) << "Average number of rays per location "
+            "and azimuth sector: " << ratio << endl;
+    }
+
     // Print number of locations outside of triangle mesh
     if (num_outside > 0) {
         cout << "Warning: " << num_outside << " locations outside of triangle "
