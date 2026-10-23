@@ -11,7 +11,7 @@ cdef extern from "horizon_compute.h" namespace "shapes":
             int num_face,
             float* earth_centre,
             float* north_pole,
-        )
+        ) except +
         void horizon_vertex(
             int num_azim,
             double azim_offset,
@@ -75,6 +75,14 @@ cdef class Terrain:
             Cartesian coordinates of Earth centre [m]
         north_pole : ndarray of float32 (3)
             Cartesian coordinates of North Pole [m]
+
+        Raises
+        ------
+        ValueError
+            If the triangle mesh contains degenerated triangles (zero area)
+            or triangles without anti-clockwise winding (viewed from above),
+            i.e. triangles whose normal does not point away from the Earth's
+            centre.
         """
 
         # Check validity of input arguments

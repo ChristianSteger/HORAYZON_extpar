@@ -9,6 +9,8 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <sstream>
+#include <stdexcept>
 #include <vector>
 
 #include <embree4/rtcore.h>
@@ -754,6 +756,43 @@ void CppTerrain::initialise(
     cout << std::setprecision(1) << std::fixed
         << "Maximal absolute coordinate of triangle mesh: "
         << max_abs_coord_cl << " m" << endl;
+
+    // Check that all triangles are non-degenerated (non-zero area) and have
+    // an anti-clockwise winding (viewed from above), i.e. that their normals
+    // point away from the Earth's centre
+    std::atomic<size_t> num_degenerated(0);
+    std::atomic<size_t> num_clockwise(0);
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, (size_t)num_face),
+    [&](tbb::blocked_range<size_t> r) {
+    for (size_t i=r.begin(); i<r.end(); ++i) {
+        geom_point vert[3];
+        for (int j = 0; j < 3; j++) {
+            unsigned int idx = tri_face[(i * 3) + j];
+            vert[j] = {
+                tri_vert[(idx * 3) + 0],
+                tri_vert[(idx * 3) + 1],
+                tri_vert[(idx * 3) + 2]
+            };
+        }
+        geom_vector tri_normal = cross_product(vert[2] - vert[1],
+            vert[0] - vert[1]);  // same orientation as 'get_triangle_normal'
+        geom_vector radial = compute_centroid(vert[0], vert[1], vert[2])
+            - earth_centre_cl;
+        if (dot_product(tri_normal, tri_normal) == 0.0) {
+            num_degenerated++;
+        } else if (dot_product(tri_normal, radial) <= 0.0) {
+            num_clockwise++;
+        }
+    }
+    });
+    if ((num_degenerated > 0) || (num_clockwise > 0)) {
+        std::ostringstream msg;
+        msg << "Invalid triangle mesh: " << num_degenerated
+            << " degenerated triangle(s) (zero area) and " << num_clockwise
+            << " triangle(s) without anti-clockwise winding (normal does not "
+            "point away from the Earth's centre)";
+        throw std::invalid_argument(msg.str());
+    }
 
     // Build bounding volume hierarchy (BVH)
     scene = initializeScene(
