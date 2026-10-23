@@ -195,7 +195,7 @@ cdef class Terrain:
         # Check that object has been initialised
         if not self._initialised:
             raise RuntimeError(
-                "Terrain not initialised; call 'initialise' first"
+                "Terrain not yet initialised"
             )
 
         # Check validity of input arguments
