@@ -47,6 +47,10 @@ cdef extern from "horizon_compute.h" namespace "shapes":
 cdef class Terrain:
 
     cdef CppTerrain *thisptr
+    # References to triangle mesh arrays (shared with Embree and used in
+    # subsequent method calls -> must not be freed while object exists)
+    cdef object _tri_vert
+    cdef object _tri_face
 
     def __cinit__(self):
         self.thisptr = new CppTerrain()
@@ -83,6 +87,12 @@ cdef class Terrain:
             or triangles without anti-clockwise winding (viewed from above),
             i.e. triangles whose normal does not point away from the Earth's
             centre.
+
+        Notes
+        -----
+        The arrays 'tri_vert' and 'tri_face' are not copied but shared with
+        Embree. A reference to them is kept as long as the object exists.
+        They must not be modified after initialisation.
         """
 
         # Check validity of input arguments
@@ -103,6 +113,10 @@ cdef class Terrain:
             &earth_centre[0],
             &north_pole[0],
         )
+
+        # Keep references to triangle mesh arrays alive
+        self._tri_vert = tri_vert
+        self._tri_face = tri_face
 
     def horizon_vertex(
         self,
