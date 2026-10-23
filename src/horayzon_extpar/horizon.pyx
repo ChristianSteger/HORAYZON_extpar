@@ -22,7 +22,7 @@ cdef extern from "horizon_compute.h" namespace "shapes":
             double elev_angle_min,
             float* horizon,
             float* clearance_out,
-        )
+        ) except +
         void horizon_centroid(
             int num_azim,
             unsigned int* slice_loc,
@@ -31,7 +31,7 @@ cdef extern from "horizon_compute.h" namespace "shapes":
             double horizon_acc,
             double elev_angle_min,
             float* horizon,
-        )
+        ) except +
         void horizon_arbitrary(
             double* coords,
             int num_loc,
@@ -42,7 +42,7 @@ cdef extern from "horizon_compute.h" namespace "shapes":
             double elev_angle_min,
             float* horizon,
             float* height_above,
-        )
+        ) except +
 
 cdef class Terrain:
 
@@ -66,8 +66,8 @@ cdef class Terrain:
         self,
         np.ndarray[np.float32_t, ndim = 2] tri_vert,
         np.ndarray[np.uint32_t, ndim = 2] tri_face,
-        np.ndarray[np.float32_t, ndim = 1] earth_centre,
-        np.ndarray[np.float32_t, ndim = 1] north_pole,
+        np.ndarray[np.float32_t, ndim = 1, mode = "c"] earth_centre,
+        np.ndarray[np.float32_t, ndim = 1, mode = "c"] north_pole,
         ):
         """
         Build Embree BVH from triangle mesh representing a terrain surface.
@@ -108,9 +108,12 @@ cdef class Terrain:
         # Check validity of input arguments
         if ((tri_vert.shape[1] != 3) or (tri_face.shape[1] != 3)):
             raise ValueError("Second dimension size of input arrays must be 3")
-        if ((tri_face.min() < 0.0)
-            or (tri_face.max() > tri_vert.shape[0] - 1)):
+        if (tri_face.max() > tri_vert.shape[0] - 1):
             raise ValueError("Indices of 'tri_face' out of range")
+        if (earth_centre.shape[0] != 3) or (north_pole.shape[0] != 3):
+            raise ValueError(
+                "Arrays 'earth_centre' and 'north_pole' must have 3 elements"
+            )
         if ((not tri_vert.flags["C_CONTIGUOUS"])
                 or (not tri_face.flags["C_CONTIGUOUS"])):
             raise ValueError("Input arrays must be C-contiguous")
@@ -133,7 +136,7 @@ cdef class Terrain:
         self,
         int num_azim,
         double azim_offset,
-        np.ndarray[np.uint32_t, ndim = 1] slice_loc,
+        np.ndarray[np.uint32_t, ndim = 1, mode = "c"] slice_loc,
         float dist_search,
         double ray_offset_factor,
         double horizon_acc,
@@ -198,9 +201,15 @@ cdef class Terrain:
             raise ValueError(
                 "Azimuth offset must be in the range [-180.0, +180.0]"
             )
+        if (slice_loc.shape[0] != 2):
+            raise ValueError("Array 'slice_loc' must have 2 elements")
         if (slice_loc[1] <= slice_loc[0]):
             raise ValueError(
                 "Indices in 'slice_loc' must be in increasing order"
+            )
+        if (slice_loc[1] > self._tri_vert.shape[0]):
+            raise ValueError(
+                "Indices in 'slice_loc' exceed number of vertices"
             )
         if (dist_search < 1_000.0) or (dist_search > 500_000.0):
             raise ValueError(
@@ -249,7 +258,7 @@ cdef class Terrain:
     def horizon_centroid(
         self,
         int num_azim,
-        np.ndarray[np.uint32_t, ndim = 1] slice_loc,
+        np.ndarray[np.uint32_t, ndim = 1, mode = "c"] slice_loc,
         float dist_search,
         double ray_offset_factor,
         double horizon_acc,
@@ -293,9 +302,15 @@ cdef class Terrain:
             raise ValueError(
                 "Number of azimuth position must be at least 4"
             )
+        if (slice_loc.shape[0] != 2):
+            raise ValueError("Array 'slice_loc' must have 2 elements")
         if (slice_loc[1] <= slice_loc[0]):
             raise ValueError(
                 "Indices in 'slice_loc' must be in increasing order"
+            )
+        if (slice_loc[1] > self._tri_face.shape[0]):
+            raise ValueError(
+                "Indices in 'slice_loc' exceed number of triangles"
             )
         if (dist_search < 1_000.0) or (dist_search > 500_000.0):
             raise ValueError(

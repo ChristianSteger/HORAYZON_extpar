@@ -493,9 +493,12 @@ bool castRay_occluded1(RTCScene scene, float ox, float oy, float oz, float dx,
     ray.dir_x = dx;
     ray.dir_y = dy;
     ray.dir_z = dz;
-    ray.tnear = 0.0;
+    ray.tnear = 0.0f;
     ray.tfar = dist_search;
+    ray.time = 0.0f;
     ray.mask = 1;
+    ray.id = 0;
+    ray.flags = 0;
     rtcOccluded1(scene, &ray); // intersect ray with scene
     return (ray.tfar < 0.0);
 }
@@ -851,7 +854,7 @@ void CppTerrain::horizon_vertex(
     size_t num_rays = 0;
 
     num_rays += tbb::parallel_reduce(
-    tbb::blocked_range<size_t>(slice_loc[0], slice_loc[1]), 0.0,
+    tbb::blocked_range<size_t>(slice_loc[0], slice_loc[1]), (size_t)0,
     [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
     // User data for point query (private for each TBB task)
@@ -987,7 +990,7 @@ void CppTerrain::horizon_centroid(
     size_t num_rays = 0;
 
     num_rays += tbb::parallel_reduce(
-    tbb::blocked_range<size_t>(slice_loc[0], slice_loc[1]), 0.0,
+    tbb::blocked_range<size_t>(slice_loc[0], slice_loc[1]), (size_t)0,
     [&](tbb::blocked_range<size_t> r, size_t num_rays) {  // parallel
 
     // for (size_t i = (size_t)slice_loc[0]; i < (size_t)slice_loc[1]; i++){
