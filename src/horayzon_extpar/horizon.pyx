@@ -114,6 +114,12 @@ cdef class Terrain:
             raise ValueError(
                 "Arrays 'earth_centre' and 'north_pole' must have 3 elements"
             )
+        if not np.isfinite(tri_vert).all():
+            raise ValueError("Array 'tri_vert' contains non-finite values")
+        if not np.isfinite(earth_centre).all():
+            raise ValueError("Array 'earth_centre' contains non-finite values")
+        if not np.isfinite(north_pole).all():
+            raise ValueError("Array 'north_pole' contains non-finite values")
         if ((not tri_vert.flags["C_CONTIGUOUS"])
                 or (not tri_face.flags["C_CONTIGUOUS"])):
             raise ValueError("Input arrays must be C-contiguous")
@@ -197,7 +203,7 @@ cdef class Terrain:
             raise ValueError(
                 "Number of azimuth position must be at least 4"
             )
-        if (azim_offset < -180.0) or (azim_offset > 180.0):
+        if not (-180.0 <= azim_offset <= 180.0):
             raise ValueError(
                 "Azimuth offset must be in the range [-180.0, +180.0]"
             )
@@ -211,17 +217,21 @@ cdef class Terrain:
             raise ValueError(
                 "Indices in 'slice_loc' exceed number of vertices"
             )
-        if (dist_search < 1_000.0) or (dist_search > 500_000.0):
+        if not (1_000.0 <= dist_search <= 800_000.0):
             raise ValueError(
-                "Search distance must be in the range [1'000, 500'000] m"
+                "Search distance must be in the range [1'000.0, 800'000.0] m"
             )
-        if (ray_offset_factor < 1.0):
+        if not (1.0 <= ray_offset_factor <= 50.0):
             raise ValueError(
-                "Minimal allowed value for 'ray_offset_factor' is 1.0"
+                "Ray offset factor must be in the range [1.0, 50.0]"
             )
-        if (horizon_acc < 0.001) or (horizon_acc > 10.0):
+        if not (0.001 <= horizon_acc <= 10.0):
             raise ValueError(
                 "Horizon accuracy must be in the range [0.001, 10.0] deg"
+            )
+        if not (-90.0 <= elev_angle_min <= 0.0):
+            raise ValueError(
+                "'elev_angle_min' must be in the range [-90.0, 0.0] deg"
             )
         if ((elev_angle_min - (2.0 * horizon_acc)) <= -90.0):
             raise ValueError(
@@ -312,17 +322,21 @@ cdef class Terrain:
             raise ValueError(
                 "Indices in 'slice_loc' exceed number of triangles"
             )
-        if (dist_search < 1_000.0) or (dist_search > 500_000.0):
+        if not (1_000.0 <= dist_search <= 800_000.0):
             raise ValueError(
-                "Search distance must be in the range [1'000, 500'000] m"
+                "Search distance must be in the range [1'000.0, 800'000.0] m"
             )
-        if (ray_offset_factor < 1.0):
+        if not (1.0 <= ray_offset_factor <= 50.0):
             raise ValueError(
-                "Minimal allowed value for 'ray_offset_factor' is 1.0"
+                "Ray offset factor must be in the range [1.0, 50.0]"
             )
-        if (horizon_acc < 0.001) or (horizon_acc > 10.0):
+        if not (0.001 <= horizon_acc <= 10.0):
             raise ValueError(
                 "Horizon accuracy must be in the range [0.001, 10.0] deg"
+            )
+        if not (-90.0 <= elev_angle_min <= 0.0):
+            raise ValueError(
+                "'elev_angle_min' must be in the range [-90.0, 0.0] deg"
             )
         if ((elev_angle_min - (2.0 * horizon_acc)) <= -90.0):
             raise ValueError(
@@ -406,17 +420,21 @@ cdef class Terrain:
             raise ValueError(
                 "Number of azimuth position must be at least 4"
             )
-        if (dist_search < 1_000.0) or (dist_search > 500_000.0):
+        if not (1_000.0 <= dist_search <= 800_000.0):
             raise ValueError(
-                "Search distance must be in the range [1'000, 500'000] m"
+                "Search distance must be in the range [1'000.0, 800'000.0] m"
             )
-        if (height_min < 0.5):
+        if not (0.5 <= height_min <= 500.0):
             raise ValueError(
-                "Minimal allowed value for 'height_min' is 0.5 m"
+                "Minimal height must be in the range [0.5, 500.0] m"
             )
-        if (horizon_acc < 0.001) or (horizon_acc > 10.0):
+        if not (0.001 <= horizon_acc <= 10.0):
             raise ValueError(
                 "Horizon accuracy must be in the range [0.001, 10.0] deg"
+            )
+        if not (-90.0 <= elev_angle_min <= 0.0):
+            raise ValueError(
+                "'elev_angle_min' must be in the range [-90.0, 0.0] deg"
             )
         if ((elev_angle_min - (2.0 * horizon_acc)) <= -90.0):
             raise ValueError(
