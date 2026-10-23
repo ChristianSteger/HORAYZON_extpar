@@ -51,9 +51,12 @@ cdef class Terrain:
     # subsequent method calls -> must not be freed while object exists)
     cdef object _tri_vert
     cdef object _tri_face
+    # Status of initialisation (only one successful initialisation allowed)
+    cdef bint _initialised
 
     def __cinit__(self):
         self.thisptr = new CppTerrain()
+        self._initialised = False
 
     def __dealloc__(self):
         if self.thisptr is not NULL:
@@ -87,13 +90,20 @@ cdef class Terrain:
             or triangles without anti-clockwise winding (viewed from above),
             i.e. triangles whose normal does not point away from the Earth's
             centre.
+        RuntimeError
+            If the object has already been initialised successfully.
 
         Notes
         -----
         The arrays 'tri_vert' and 'tri_face' are not copied but shared with
         Embree. A reference to them is kept as long as the object exists.
-        They must not be modified after initialisation.
+        They must not be modified after initialisation. An object can only be
+        initialised once.
         """
+
+        # Check that object has not been initialised yet
+        if self._initialised:
+            raise RuntimeError("Terrain already initialised")
 
         # Check validity of input arguments
         if ((tri_vert.shape[1] != 3) or (tri_face.shape[1] != 3)):
@@ -117,6 +127,7 @@ cdef class Terrain:
         # Keep references to triangle mesh arrays alive
         self._tri_vert = tri_vert
         self._tri_face = tri_face
+        self._initialised = True
 
     def horizon_vertex(
         self,
@@ -171,6 +182,12 @@ cdef class Terrain:
             are in the range (0.0, 1.0]; NaN indicates that no valid offset
             direction was found. Only returned if 'return_clearance' is True.
         """
+
+        # Check that object has been initialised
+        if not self._initialised:
+            raise RuntimeError(
+                "Terrain not initialised; call 'initialise' first"
+            )
 
         # Check validity of input arguments
         if (num_azim < 4):
@@ -265,6 +282,12 @@ cdef class Terrain:
             Terrain horizon for selected locations [deg]
         """
 
+        # Check that object has been initialised
+        if not self._initialised:
+            raise RuntimeError(
+                "Terrain not initialised; call 'initialise' first"
+            )
+
         # Check validity of input arguments
         if (num_azim < 4):
             raise ValueError(
@@ -352,6 +375,12 @@ cdef class Terrain:
             'height_min' [m]
             NaN for locations outside of the triangle mesh domain
         """
+
+        # Check that object has been initialised
+        if not self._initialised:
+            raise RuntimeError(
+                "Terrain not initialised; call 'initialise' first"
+            )
 
         # Check validity of input arguments
         if (coords.shape[1] != 3):
