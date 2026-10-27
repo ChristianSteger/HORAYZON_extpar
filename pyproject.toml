@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horayzon-extpar"
-version = "2.1.0"
+version = "2.1.1"
 description = "Embree ray tracing interface to compute grid- and subgrid-scale terrain horizon for ICON grids"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -32,7 +32,7 @@ packages = ["horayzon_extpar"]
 horayzon_extpar = ["*.pyx", "*.h", "*.cpp"]
 
 [tool.cibuildwheel]
-build = "cp310-* cp311-* cp312-* cp313-* cp314-*"
+build = "cp310-* cp311-* cp312-* cp313-* cp314-* cp315-*"
 skip = "*-musllinux*"
 archs = ["x86_64"]
 build-verbosity = 1
