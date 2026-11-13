@@ -3,14 +3,15 @@ Embree ray tracing interface to compute grid- and subgrid-scale terrain horizon 
 
 # Installation
 
-## From PyPI (Linux x86_64)
+## From PyPI (Linux x86_64 and aarch64)
 
 ```bash
 pip install horayzon-extpar
 ```
 
-This installs a prebuilt wheel with Embree bundled in, plus `tbb` (Intel's
-official runtime wheel) as a dependency.
+On x86_64, this installs a prebuilt wheel with Embree bundled in, plus `tbb`
+(Intel's official runtime wheel) as a dependency. On aarch64, where no `tbb`
+wheel exists, both Embree and TBB are bundled into the wheel.
 
 ## From source (development)
 

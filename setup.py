@@ -11,12 +11,16 @@
 #   x86_64 release is downloaded and cached under .embree_cache/ (or pointed
 #   to via the EMBREE_DIR environment variable for local/offline builds,
 #   e.g. a Conda environment's prefix).
+# - On Linux aarch64, neither prebuilt Embree nor tbb/tbb-devel wheels
+#   exist: both are built from source and passed in via EMBREE_DIR and
+#   TBB_ROOT (see [[tool.cibuildwheel.overrides]] in pyproject.toml).
 #
-# At runtime, only 'tbb' (the pip wheel with just the release .so) is a
-# separate dependency; libembree4 is bundled directly into this package's
-# wheel by 'auditwheel repair' (see .github/workflows/wheels.yml).
+# At runtime on x86_64, only 'tbb' (the pip wheel with just the release .so)
+# is a separate dependency; libembree4 is bundled directly into this
+# package's wheel by 'auditwheel repair'. On aarch64, libtbb is bundled too.
 
 import os
+import platform
 import sys
 import sysconfig
 import tarfile
@@ -28,7 +32,7 @@ from Cython.Build import cythonize
 import numpy as np
 
 if sys.platform != "linux":
-    raise RuntimeError("This package only supports Linux x86_64.")
+    raise RuntimeError("This package only supports Linux (x86_64, aarch64).")
 
 EMBREE_VERSION = "4.4.1"
 EMBREE_URL = (
@@ -46,6 +50,13 @@ def get_embree_dir():
     override = os.environ.get("EMBREE_DIR")
     if override:
         return Path(override)
+
+    if platform.machine() != "x86_64":
+        raise RuntimeError(
+            "No prebuilt Embree release is available for "
+            f"Linux {platform.machine()}. Build Embree from source and set "
+            "EMBREE_DIR (and TBB_ROOT) to its install prefix."
+        )
 
     cache_dir = ROOT_DIR / ".embree_cache" / f"embree-{EMBREE_VERSION}"
     header = cache_dir / "include" / "embree4" / "rtcore.h"
@@ -96,8 +107,16 @@ if not embree_lib_dir.is_dir():
 # dependency, so pip installs it into the real environment before this
 # extension is built) -- tbb-devel's own overlay only ships *_debug.so
 # variants, so it must not be used as the library search path.
-prefix_include_dir = get_tbb_devel_prefix() / "include"
-prefix_lib_dir = Path(sysconfig.get_paths()["data"]) / "lib"
+#
+# TBB_ROOT overrides both (e.g. on Linux aarch64, where no tbb/tbb-devel
+# wheels exist and TBB is built from source -- see pyproject.toml).
+tbb_root = os.environ.get("TBB_ROOT")
+if tbb_root:
+    prefix_include_dir = Path(tbb_root) / "include"
+    prefix_lib_dir = Path(tbb_root) / "lib"
+else:
+    prefix_include_dir = get_tbb_devel_prefix() / "include"
+    prefix_lib_dir = Path(sysconfig.get_paths()["data"]) / "lib"
 
 setup(
     ext_modules=cythonize(

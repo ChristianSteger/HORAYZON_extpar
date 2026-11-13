@@ -9,7 +9,17 @@ import sysconfig
 # extension is imported -- otherwise the dynamic linker has no reliable way
 # to find it, since 'tbb' installs its libraries relative to sys.prefix
 # rather than into site-packages.
+#
+# Exception: Linux aarch64 wheels bundle libtbb themselves (no 'tbb' wheel
+# exists for aarch64), and auditwheel's RPATH already resolves it -- so the
+# preload is skipped to avoid loading a second TBB runtime.
 def _preload_tbb():
+    bundled_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "horayzon_extpar.libs",
+    )
+    if glob.glob(os.path.join(bundled_dir, "libtbb*.so*")):
+        return
     lib_dir = os.path.join(sysconfig.get_paths()["data"], "lib")
     for pattern in ("libtbb.so.12", "libtbb.so"):
         matches = glob.glob(os.path.join(lib_dir, pattern))
